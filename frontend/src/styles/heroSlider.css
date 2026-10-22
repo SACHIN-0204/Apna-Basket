@@ -1,0 +1,207 @@
+.hero-slider {
+    position: relative;
+    width: 100%;
+    height: 340px;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 30px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+}
+
+.hero-slide {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    opacity: 0;
+    transition: opacity 0.8s ease-in-out;
+    display: flex;
+    align-items: center;
+}
+
+.hero-slide.active {
+    opacity: 1;
+    z-index: 1;
+}
+
+.hero-slide-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        90deg,
+        rgba(0, 0, 0, 0.6) 0%,
+        rgba(0, 0, 0, 0.25) 55%,
+        rgba(0, 0, 0, 0.05) 100%
+    );
+}
+
+.hero-slide-content {
+    position: relative;
+    z-index: 2;
+    color: #fff;
+    padding: 0 40px;
+    max-width: 520px;
+}
+
+.hero-slide-content h2 {
+    font-size: 30px;
+    margin-bottom: 10px;
+    text-align: left;
+    color: #fff;
+}
+
+.hero-slide-content p {
+    font-size: 16px;
+    opacity: 0.95;
+    margin-bottom: 18px;
+}
+
+.hero-slide-btn {
+    display: inline-block;
+    background: #2e7d32;
+    color: #fff;
+    padding: 10px 22px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: background 0.3s ease;
+}
+
+.hero-slide-btn:hover {
+    background: #1b5e20;
+}
+
+/* Arrows */
+.hero-slider-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.85);
+    border: none;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 3;
+    transition: background 0.2s ease;
+}
+
+.hero-slider-arrow:hover {
+    background: #fff;
+}
+
+.hero-slider-arrow-left {
+    left: 16px;
+}
+
+.hero-slider-arrow-right {
+    right: 16px;
+}
+
+/* Dots */
+.hero-slider-dots {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    z-index: 3;
+}
+
+.hero-slider-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    padding: 0;
+    transition: background 0.3s ease, transform 0.3s ease;
+}
+
+.hero-slider-dot.active {
+    background: #fff;
+    transform: scale(1.3);
+}
+
+@media (max-width: 768px) {
+    .hero-slider {
+        height: 260px;
+    }
+
+    .hero-slide-content h2 {
+        font-size: 22px;
+    }
+
+    .hero-slide-content p {
+        font-size: 14px;
+    }
+
+    .hero-slider-arrow {
+        width: 32px;
+        height: 32px;
+        font-size: 18px;
+    }
+}
+
+@media (max-width: 480px) {
+    .hero-slider {
+        height: 200px;
+    }
+
+    .hero-slide-content {
+        padding: 0 20px;
+    }
+
+    .hero-slide-content h2 {
+        font-size: 18px;
+    }
+
+    .hero-slide-content p {
+        display: none; /* keep it clean on very small screens */
+    }
+}
+
+.hero-slide-btn-disabled {
+    background: rgba(255, 255, 255, 0.25);
+    color: #fff;
+    cursor: not-allowed;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.hero-slide-btn-disabled:hover {
+    background: rgba(255, 255, 255, 0.25); /* no hover feedback since it's disabled */
+}
+/* Beat the generic ".home-container h2" rule so slide titles stay white and left-aligned */
+.hero-slider .hero-slide-content h2 {
+    color: #fff;
+    text-align: left;
+    font-size: 30px;
+    margin-bottom: 10px;
+}
+
+@media (max-width: 768px) {
+    .hero-slider .hero-slide-content h2 {
+        font-size: 24px;
+    }
+}
+
+/* Same global h2 gradient-text fix for slide titles */
+.hero-slider .hero-slide-content h2 {
+    background: none;
+    -webkit-text-fill-color: #fff;
+}
+
+/* Keep slide text clear of the left/right arrow buttons */
+.hero-slider .hero-slide-content {
+    padding: 0 68px;
+}
+
+@media (max-width: 480px) {
+    .hero-slider .hero-slide-content {
+        padding: 0 52px;
+    }
+}

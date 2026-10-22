@@ -1,0 +1,263 @@
+/* Footer Styles */
+.footer {
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  color: #e0e0e0;
+  margin-top: 50px;
+  padding: 40px 0 0 0;
+}
+
+.footer-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 40px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+/* Footer Section */
+.footer-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.footer-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 2px solid #4cc36f;
+  padding-bottom: 10px;
+}
+
+.footer-description {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #b0b0b0;
+  margin-bottom: 20px;
+}
+
+/* Footer Links */
+.footer-links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.footer-links li {
+  margin-bottom: 12px;
+}
+
+.footer-links a {
+  color: #b0b0b0;
+  text-decoration: none;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  display: inline-block;
+}
+
+.footer-links a:hover {
+  color: #4cc36f;
+  transform: translateX(5px);
+}
+
+/* Social Links */
+.social-links {
+  display: flex;
+  gap: 15px;
+  margin-top: 15px;
+}
+
+.social-icon {
+  width: 40px;
+  height: 40px;
+  background: rgba(31, 138, 67, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4cc36f;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  font-size: 18px;
+}
+
+.social-icon:hover {
+  background: #1f8a43;
+  color: white;
+  transform: translateY(-3px);
+}
+
+/* Contact Info */
+.contact-info {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.contact-info p {
+  font-size: 14px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.contact-label {
+  font-weight: 600;
+  color: #fff;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.contact-info a {
+  color: #4cc36f;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  word-break: break-word;
+}
+
+.contact-info a:hover {
+  text-decoration: underline;
+  color: #63a4ff;
+}
+
+/* Footer Bottom */
+.footer-bottom {
+  background: rgba(0, 0, 0, 0.3);
+  border-top: 1px solid rgba(31, 138, 67, 0.3);
+  padding: 30px 20px;
+  text-align: center;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.footer-bottom p {
+  margin: 8px 0;
+  font-size: 14px;
+  color: #999;
+}
+
+.footer-credits {
+  font-size: 12px;
+  font-style: italic;
+  margin-top: 10px !important;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .footer-content {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 30px;
+    padding: 30px 15px;
+  }
+
+  .footer-title {
+    font-size: 14px;
+  }
+
+  .footer-description,
+  .footer-links a,
+  .contact-info {
+    font-size: 12px;
+  }
+
+  .social-links {
+    gap: 10px;
+  }
+
+  .social-icon {
+    width: 35px;
+    height: 35px;
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .footer-content {
+    grid-template-columns: 1fr;
+    gap: 25px;
+    padding: 25px 15px;
+  }
+
+  .footer-bottom {
+    padding: 20px 15px;
+  }
+
+  .footer-title {
+    font-size: 13px;
+    margin-bottom: 15px;
+  }
+
+  .footer-description {
+    font-size: 12px;
+    margin-bottom: 15px;
+  }
+
+  .footer-links li {
+    margin-bottom: 10px;
+  }
+
+  .social-links {
+    justify-content: flex-start;
+  }
+
+  .contact-info p {
+    gap: 3px;
+  }
+
+  .footer-bottom p {
+    font-size: 12px;
+  }
+}
+
+/* Animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.footer-section {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+/* Accessibility */
+.footer a:focus {
+  outline: 2px solid #1f8a43;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Print Styles */
+@media print {
+  .footer {
+    background: white;
+    color: black;
+    margin-top: 20px;
+    padding: 20px 0;
+  }
+
+  .footer-title {
+    border-bottom: 1px solid #ccc;
+    color: black;
+  }
+
+  .footer-links a,
+  .contact-info a {
+    color: black;
+    text-decoration: underline;
+  }
+
+  .social-links {
+    display: none;
+  }
+}

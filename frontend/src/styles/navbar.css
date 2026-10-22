@@ -1,0 +1,281 @@
+/* ================= NAVBAR ================= */
+
+.navbar {
+    width: 100%;
+    min-height: 75px;
+    background: #ffffff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 45px;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    border-bottom: 1px solid #e5e5e5;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+    animation: slideDown .4s ease;
+}
+
+/* ================= BRAND ================= */
+
+.navbar-brand {
+    display: flex;
+    align-items: center;
+}
+
+.navbar-brand a {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+    font-size: 26px;
+    font-weight: 700;
+    color: #555;
+    letter-spacing: .5px;
+    transition: .3s;
+    text-shadow: 1px 1px 2px rgba(0,0,0,.15);
+}
+
+.navbar-brand a:hover {
+    color: #222;
+}
+
+/* ================= LOGO ================= */
+
+.navbar-logo {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    border-radius: 10px;
+    transition: .3s;
+}
+
+.navbar-brand:hover .navbar-logo {
+    transform: scale(1.08) rotate(5deg);
+}
+
+/* ================= LINKS ================= */
+
+.navbar-links {
+    display: flex;
+    align-items: center;
+    gap: 30px;
+    list-style: none;
+}
+
+.navbar-links li {
+    position: relative;
+}
+
+.navbar-links a {
+    text-decoration: none;
+    color: #666;
+    font-size: 17px;
+    font-weight: 600;
+    transition: .3s;
+    padding: 5px 0;
+    text-shadow: 1px 1px 2px rgba(0,0,0,.08);
+}
+
+.navbar-links a::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -6px;
+    width: 0;
+    height: 3px;
+    background: #4caf50;
+    border-radius: 10px;
+    transition: .3s;
+}
+
+.navbar-links a:hover {
+    color: #222;
+}
+
+.navbar-links a:hover::after {
+    width: 100%;
+}
+
+/* ================= LOGOUT BUTTON ================= */
+
+.btn-logout {
+    background: #ef4444;
+    color: white;
+    border: none;
+    padding: 10px 22px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 600;
+    transition: .3s;
+    box-shadow: 0 4px 12px rgba(0,0,0,.25);
+}
+
+.btn-logout:hover {
+    background: #dc2626;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 18px rgba(0,0,0,.35);
+}
+
+/* ================= RESPONSIVE ================= */
+
+@media(max-width:768px){
+
+    .navbar{
+        flex-direction:column;
+        padding:18px;
+        gap:15px;
+        align-items: stretch;
+    }
+
+    .navbar-brand a{
+        font-size:22px;
+    }
+
+    .navbar-toggle{
+        display:block;
+        border:none;
+        background:transparent;
+        cursor:pointer;
+        padding:10px;
+        margin-left:auto;
+    }
+
+    .navbar-toggle-bar{
+        display:block;
+        width:25px;
+        height:3px;
+        margin:5px 0;
+        background:#333;
+        border-radius:2px;
+        transition:transform .3s ease;
+    }
+
+    .navbar-links{
+        display:none;
+        flex-direction:column;
+        gap:14px;
+        padding:12px 0;
+        border-top:1px solid #eee;
+    }
+
+    .navbar-links.open{
+        display:flex;
+    }
+
+    .navbar-links li{
+        width:100%;
+    }
+
+    .navbar-links a,
+    .btn-logout{
+        width:100%;
+        text-align:center;
+    }
+
+}
+
+@media(max-width:480px){
+
+    .navbar{
+        padding:15px;
+    }
+
+    .navbar-brand a{
+        font-size:19px;
+    }
+
+    .navbar-logo{
+        width:40px;
+        height:40px;
+    }
+
+    .navbar-toggle{
+        padding:8px;
+    }
+
+    .navbar-toggle-bar{
+        width:22px;
+    }
+
+    .btn-logout{
+        padding:12px 16px;
+    }
+
+}
+
+/* ================= ACCESSIBILITY ================= */
+
+.navbar-links a:focus,
+.btn-logout:focus{
+    outline:2px solid #4caf50;
+    outline-offset:3px;
+}
+
+/* ================= ANIMATION ================= */
+
+@keyframes slideDown{
+    from{
+        opacity:0;
+        transform:translateY(-20px);
+    }
+    to{
+        opacity:1;
+        transform:translateY(0);
+    }
+}
+
+/* Search bar */
+.navbar-search-row {
+    padding-top: 40px;
+}
+
+
+/* ================= APNA BASKET BRAND TEXT ================= */
+
+.brand-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+}
+
+.brand-name {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: .3px;
+    text-shadow: none;
+}
+
+.brand-apna {
+    color: #1f8a43;
+}
+
+.brand-basket {
+    color: #f97316;
+}
+
+.brand-tagline {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: #777;
+    letter-spacing: .4px;
+    margin-top: 3px;
+    text-shadow: none;
+}
+
+@media (max-width: 768px) {
+    .brand-name { font-size: 21px; }
+    .brand-tagline { font-size: 9px; }
+}
+
+@media (max-width: 480px) {
+    .brand-tagline { display: none; }
+}
+
+/* Hide the hamburger button on desktop (it only belongs on mobile) */
+@media (min-width: 769px) {
+    .navbar-toggle {
+        display: none;
+    }
+}

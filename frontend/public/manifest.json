@@ -1,0 +1,20 @@
+{
+  "short_name": "Apna Basket",
+  "name": "Apna Basket - Groceries, Daily Essentials & Household Needs",
+  "icons": [
+    {
+      "src": "logo192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#1f8a43",
+  "background_color": "#ffffff"
+}
