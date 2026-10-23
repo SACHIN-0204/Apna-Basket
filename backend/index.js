@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const compression = require("compression");
 const dotenv = require("dotenv");
 const path = require("path");
 const connectDB = require("./config/db");
@@ -7,6 +8,15 @@ const connectDB = require("./config/db");
 dotenv.config({ path: path.join(__dirname, ".env") });
 
 const app = express();
+
+
+app.set('trust proxy', 1);
+// V3: lightweight health endpoint for load balancers/uptime checks.
+app.get('/health', (req, res) => {
+  res.status(200).json({ ok: true, service: 'apna-basket-api' });
+});
+// Compress JSON/HTML responses to reduce transfer time.
+app.use(compression());
 
 app.use(cors({
   origin: [
@@ -19,6 +29,15 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Short public caching for safe GET requests. Personalized endpoints stay uncached.
+app.use((req, res, next) => {
+  const isPublicGet = req.method === "GET" && !/^\/api\/(auth|orders|payments|analytics|contact)/i.test(req.path);
+  if (isPublicGet) {
+    res.set("Cache-Control", "public, max-age=30, s-maxage=60, stale-while-revalidate=300");
+  }
+  next();
+});
 
 
 app.use("/api/auth", require("./routes/authRoutes"));

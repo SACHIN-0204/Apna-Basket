@@ -1,36 +1,40 @@
-import React, { useEffect } from "react";
+import React, { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { fetchProducts } from './redux/productsSlice';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
-import Home from './pages/Home';
-import About from './pages/About';
-import Contact from './pages/Contact';
-import FAQ from './pages/FAQ';
-import Privacy from './pages/Privacy';
-import Terms from './pages/Terms';
-import Shipping from './pages/Shipping';
-import Returns from './pages/Returns';
-import NotFound from './pages/NotFound';
 import ScrollToTop from './components/ScrollToTop';
-import Register from './pages/Register';
-import Login from './pages/Login';
-import ProductDetail from './pages/ProductDetail';
-import Cart from './pages/Cart';
-import Checkout from './pages/Checkout';
-import OrderSuccess from './pages/OrderSuccess';
-import Shop from './pages/Shop';
-import Profile from './pages/Profile';
-import MyOrders from './pages/MyOrders';
-import AdminDashboard from './admin/AdminDashboard';
 import AddProducts from './admin/AddProducts';
-import AdminOrders from './admin/AdminOrders';
-// import AdminProducts from './admin/AdminProducts';
 import ManageProducts from './admin/ManageProducts';
-import AdminUsers from './admin/AdminUsers';
 import EditProduct from './admin/EditProduct';
 import { ToastProvider } from "./components/Toast";
+
+const PageLoading = () => <div style={{minHeight:'50vh',display:'grid',placeItems:'center'}}>Loading…</div>;
+
+const Home = lazy(() => import('./pages/Home'));
+const About = lazy(() => import('./pages/About'));
+const Contact = lazy(() => import('./pages/Contact'));
+const FAQ = lazy(() => import('./pages/FAQ'));
+const Privacy = lazy(() => import('./pages/Privacy'));
+const Terms = lazy(() => import('./pages/Terms'));
+const Shipping = lazy(() => import('./pages/Shipping'));
+const Returns = lazy(() => import('./pages/Returns'));
+const NotFound = lazy(() => import('./pages/NotFound'));
+const Register = lazy(() => import('./pages/Register'));
+const Login = lazy(() => import('./pages/Login'));
+const ProductDetail = lazy(() => import('./pages/ProductDetail'));
+const Cart = lazy(() => import('./pages/Cart'));
+const Checkout = lazy(() => import('./pages/Checkout'));
+const OrderSuccess = lazy(() => import('./pages/OrderSuccess'));
+const Shop = lazy(() => import('./pages/Shop'));
+const Profile = lazy(() => import('./pages/Profile'));
+const MyOrders = lazy(() => import('./pages/MyOrders'));
+const AdminDashboard = lazy(() => import('./admin/AdminDashboard'));
+const AdminOrders = lazy(() => import('./admin/AdminOrders'));
+// import AdminProducts from './admin/AdminProducts';
+const AdminUsers = lazy(() => import('./admin/AdminUsers'));
+
 
 function App() {
   const dispatch = useDispatch();
@@ -45,7 +49,8 @@ function App() {
      <ScrollToTop />
      <Navbar />
      <div className="main-content">
-        <Routes>
+        <Suspense fallback={<PageLoading />}>
+<Routes>
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
@@ -72,6 +77,7 @@ function App() {
           <Route path="/admin/edit-product/:id" element={<EditProduct />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
+</Suspense>
       </div> 
      <Footer />
      </ToastProvider>

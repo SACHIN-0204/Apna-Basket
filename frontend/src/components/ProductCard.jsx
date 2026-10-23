@@ -21,6 +21,8 @@ const ProductCard = ({ product, onAddToCart }) => {
   if (!product) return null;
 
   const { _id, name, brand, unit, price, mrp, stock, imageUrl } = product;
+  const cloudinaryImage = (width) => optimizeImage(imageUrl, width);
+  const isCloudinary = typeof imageUrl === 'string' && imageUrl.includes('res.cloudinary.com');
   const outOfStock = stock <= 0;
   const lowStock = !outOfStock && stock <= LOW_STOCK;
   const discount = mrp > price ? Math.round(((mrp - price) / mrp) * 100) : 0;
@@ -63,9 +65,12 @@ const ProductCard = ({ product, onAddToCart }) => {
       <Link to={`/product/${_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
         <div style={imageWrapStyle}>
           <img
-            src={optimizeImage(imageUrl)}
+            src={cloudinaryImage(400)}
+            srcSet={isCloudinary ? `${cloudinaryImage(240)} 240w, ${cloudinaryImage(400)} 400w, ${cloudinaryImage(600)} 600w` : undefined}
+            sizes="(max-width: 600px) 45vw, (max-width: 1000px) 30vw, 240px"
             alt={name}
             loading="lazy"
+            decoding="async"
             style={{ ...imageStyle, opacity: outOfStock ? 0.5 : 1 }}
           />
           {discount > 0 && !outOfStock && <span style={discountBadgeStyle}>{discount}% OFF</span>}

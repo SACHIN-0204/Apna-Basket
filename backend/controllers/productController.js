@@ -47,7 +47,37 @@ const getProducts = async (req, res) => {
       filter.$or = [{ name: regex }, { brand: regex }];
     }
 
-    const products = await Product.find(filter).sort({ createdAt: -1 });
+    // Keep the existing array response for compatibility, but support pagination
+    // when the client sends ?page=&limit=. Lean documents are much cheaper to serialize.
+    const page = Math.max(Number.parseInt(req.query.page || "1", 10) || 1, 1);
+    const requestedLimit = Number.parseInt(req.query.limit || "0", 10) || 0;
+    const limit = Math.min(Math.max(requestedLimit, 0), 60);
+
+    let query = Product.find(filter)
+      .sort({ createdAt: -1 })
+      .select("name description brand category unit price mrp stock imageUrl isActive rating numReviews createdAt")
+      .lean();
+
+    if (limit > 0) {
+      query = query.skip((page - 1) * limit).limit(limit);
+    }
+
+    const products = await query.exec();
+
+    // Preserve the legacy array response for existing clients.
+    // When pagination is explicitly requested, return metadata too.
+    if (limit > 0) {
+      const total = await Product.countDocuments(filter);
+      return res.status(200).json({
+        products,
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasMore: page * limit < total,
+      });
+    }
+
     res.status(200).json(products);
   } catch (error) {
     res.status(500).json({ message: "Server error" });

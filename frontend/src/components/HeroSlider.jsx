@@ -15,7 +15,7 @@ const SLIDES = [
         title: "Fresh Dairy, Every Morning",
         subtitle: "Milk, curd, paneer & more — delivered fresh to your doorstep.",
         image:
-            "https://images.unsplash.com/photo-1528750997573-59b89d56f4f7?auto=format&fit=crop&w=1600&q=80",
+            "https://images.unsplash.com/photo-1528750997573-59b89d56f4f7?auto=format&fit=crop&w=1200&q=70",
         link: "/shop",
         cta: "Shop Dairy",
     },
@@ -23,7 +23,7 @@ const SLIDES = [
         title: "Grocery Essentials, All in One Place",
         subtitle: "From atta to spices — everything your kitchen needs.",
         image:
-            "https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&w=1600&q=80",
+            "https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&w=1200&q=70",
         link: "/shop",
         cta: "Shop Groceries",
     },
@@ -31,7 +31,7 @@ const SLIDES = [
         title: "Namkeen & Snacks You'll Love",
         subtitle: "Crunchy, spicy, and always fresh — snack time sorted.",
         image:
-            "https://images.unsplash.com/photo-1633536706889-af4e8cd7f64b?auto=format&fit=crop&w=1600&q=80",
+            "https://images.unsplash.com/photo-1633536706889-af4e8cd7f64b?auto=format&fit=crop&w=1200&q=70",
         link: "/shop",
         cta: "Shop Snacks",
     },

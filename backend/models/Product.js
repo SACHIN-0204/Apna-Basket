@@ -19,6 +19,8 @@ const productSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-productSchema.index({ name: "text", brand: "text" }); // enables search
+productSchema.index({ name: "text", brand: "text" });
+productSchema.index({ isActive: 1, createdAt: -1 }); // enables search
+productSchema.index({ isActive: 1, category: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Product", productSchema);

@@ -1,39 +1,17 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
+import { useSelector } from "react-redux";
 import { Link } from "react-router-dom";
 import ProductCarousel from "../components/ProductCarousel";
 import HeroSlider from "../components/HeroSlider";
 import "../styles/home.css";
 
 const Home = () => {
-    const [products, setProducts] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [fetchError, setFetchError] = useState('');
-
-    useEffect(() => {
-        const fetchProducts = async () => {
-            try {
-                const res = await fetch('/api/products');
-                if (!res.ok) {
-                    const details = await res.text();
-                    throw new Error(`Products request failed (${res.status})${details ? `: ${details}` : ''}`);
-                }
-                if (!res.headers.get('content-type')?.includes('application/json')) {
-                    throw new Error('Products API returned a non-JSON response. Check that the backend is running.');
-                }
-                const data = await res.json();
-                if (!Array.isArray(data)) {
-                    throw new Error('Products API returned an invalid response.');
-                }
-                setProducts(data); // keep ALL products, don't slice here
-            } catch (error) {
-                console.error('Failed to load products:', error);
-                setFetchError(error.message || 'Could not load products. Check that the backend is running.');
-            } finally {
-                setLoading(false);
-            }
-        }
-        fetchProducts();
-    }, []);
+    const productsState = useSelector((state) => state.products);
+    const products = Array.isArray(productsState)
+        ? productsState
+        : productsState?.items ?? [];
+    const loading = productsState?.status === "loading" || productsState?.status === "idle";
+    const fetchError = productsState?.error || "";
 
     // Derive each section's list from the full products array
     // const readyToCook = products.slice(0, 6);
