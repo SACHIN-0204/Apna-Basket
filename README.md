@@ -72,7 +72,7 @@ The server codebase features a seamless fallback mechanic leveraging Node `proce
    *(This cleanly installs API + UI node_modules then generates `react-scripts build`)*
 5. Configure Start Command:
    `npm start`
-6. Open **Advanced > Environment Variables** and map your `.env` fields heavily defining `NODE_ENV = production`.
+6. Open **Advanced > Environment Variables** and configure the backend values, including `NODE_ENV=production`, `MONGO_URI`, `JWT_SECRET`, `SMTP_USER`, and `SMTP_PASS`. `SMTP_USER` must be the Gmail account used to send OTP emails; `SMTP_PASS` must be that account's Google App Password, not its regular sign-in password. Without working SMTP credentials, registration returns HTTP 503 because it cannot send the verification OTP.
 7. Hit **Deploy**. The robust path resolving inside `/backend/server.js` hosts it fluidly!
 
 ---

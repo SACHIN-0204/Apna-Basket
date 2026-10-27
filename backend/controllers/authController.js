@@ -82,7 +82,7 @@ const registerUser = async (req, res) => {
         await sendVerificationEmail(existingUser, existingUser.otp);
       } catch (emailError) {
         return res.status(503).json({
-          message: 'Registration could not send the verification email. Check the backend email configuration and try again.'
+          message: 'Registration could not send the verification email. Configure SMTP_USER and SMTP_PASS on the backend (use a Gmail App Password), then try again.'
         });
       }
 
@@ -112,7 +112,7 @@ const registerUser = async (req, res) => {
     } catch (emailError) {
       await User.deleteOne({ _id: user._id });
       return res.status(503).json({
-        message: 'Registration could not send the verification email. Check the backend email configuration and try again.'
+        message: 'Registration could not send the verification email. Configure SMTP_USER and SMTP_PASS on the backend (use a Gmail App Password), then try again.'
       });
     }
 
