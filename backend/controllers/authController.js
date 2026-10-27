@@ -7,11 +7,56 @@ const generateToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expires
 
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
-const sendVerificationEmail = async (user, otp) => {
-  const message = `Hello ${user.username},\n\nThank you for registering with Apna Basket.\nYour OTP for email verification is: ${otp}\n\nThis OTP will expire in 10 minutes.`;
+// const sendVerificationEmail = async (user, otp) => {
+//   const message = `Hello ${user.username},\n\nThank you for registering with Apna Basket.\nYour OTP for email verification is: ${otp}\n\nThis OTP will expire in 10 minutes.`;
 
-  await sendEmail(user.email, 'Verify your email - Apna Basket', message);
+//   await sendEmail(user.email, 'Verify your email - Apna Basket', message);
+// };
+
+
+const sendVerificationEmail = async (user, otp) => {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6;">
+        <h2>Welcome to Apna Basket, ${user.username}!</h2>
+
+        <p>Thank you for registering with Apna Basket.</p>
+
+        <p>Your email verification OTP is:</p>
+
+        <div style="
+          font-size: 32px;
+          font-weight: bold;
+          letter-spacing: 8px;
+          margin: 20px 0;
+        ">
+          ${otp}
+        </div>
+
+        <p>
+          This OTP will expire in <strong>10 minutes</strong>.
+        </p>
+
+        <p>
+          If you did not create this account, you can safely ignore this email.
+        </p>
+
+        <p>
+          Thanks,<br>
+          <strong>Apna Basket Team</strong>
+        </p>
+      </body>
+    </html>
+  `;
+
+  await sendEmail(
+    user.email,
+    "Verify your email - Apna Basket",
+    html
+  );
 };
+
 
 const registerUser = async (req, res) => {
   const { username, email, password } = req.body;

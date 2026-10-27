@@ -1,53 +1,85 @@
-const path = require('path');
-const dotenv = require('dotenv');
-const nodeMailer = require('nodemailer');
+const nodemailer = require("nodemailer");
+const dotenv = require("dotenv");
+dotenv.config();
+const path = require("path");
 
-dotenv.config({ path: path.join(__dirname, '../.env') });
+// Read credentials from Render environment variables
+const user = process.env.SMTP_USER || process.env.EMAIL_USER;
+const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
+
+if (!user || !pass) {
+    console.error(
+        "Email configuration missing. Set SMTP_USER and SMTP_PASS in Render."
+    );
+}
+
+// Gmail transporter
+// Using service: "gmail" lets Nodemailer configure Gmail's SMTP
+// settings automatically.
+const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+        user,
+        pass: pass ? pass.replace(/\s/g, "") : undefined,
+    },
+
+    // Timeouts prevent your API from hanging indefinitely
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 60000,
+});
+
+// Verify SMTP connection when the server starts
+transporter.verify()
+    .then(() => {
+        console.log("Email SMTP connection successful");
+    })
+    .catch((error) => {
+        console.error("Email SMTP connection failed:", {
+            code: error.code,
+            message: error.message,
+        });
+    });
 
 const sendEmail = async (to, subject, html, options = {}) => {
-    const user = process.env.SMTP_USER || process.env.EMAIL_USER || process.env.GMAIL_USER;
-    const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS || process.env.GMAIL_PASS;
-    const host = process.env.SMTP_HOST || 'smtp.gmail.com';
-    const port = Number(process.env.SMTP_PORT) || 587;
-
     if (!user || !pass) {
-        throw new Error('Email credentials are not configured. Set SMTP_USER/SMTP_PASS or GMAIL_USER/GMAIL_PASS in backend/.env.');
+        throw new Error(
+            "Email credentials are not configured. Set SMTP_USER and SMTP_PASS in Render."
+        );
     }
 
     try {
-        const transporter = nodeMailer.createTransport({
-            host,
-            port,
-            secure: port === 465,
-            auth: {
-                user,
-                pass: pass.replace(/\s/g, '')
-            }
-        });
-
-        await transporter.verify();
-
         const mailOptions = {
-            from: user,
+            from: `"Apna Basket" <${user}>`,
             to,
             subject,
             html,
-            text: html.replace(/<[^>]*>/g, '')
+            text: html.replace(/<[^>]*>/g, ""),
         };
 
         if (options.replyTo) {
             mailOptions.replyTo = options.replyTo;
         }
 
-        await transporter.sendMail(mailOptions);
+        const info = await transporter.sendMail(mailOptions);
+
+        console.log("Verification email sent:", {
+            messageId: info.messageId,
+            to,
+        });
+
+        return info;
     } catch (error) {
-        console.error('Error sending verification email:', {
+        console.error("Error sending verification email:", {
             code: error.code,
             responseCode: error.responseCode,
             response: error.response,
-            message: error.message
+            message: error.message,
         });
-        throw new Error(`Email delivery failed${error.code ? ` (${error.code})` : ''}: ${error.message}`);
+
+        throw new Error(
+            `Email delivery failed${error.code ? ` (${error.code})` : ""}: ${error.message}`
+        );
     }
 };
 
