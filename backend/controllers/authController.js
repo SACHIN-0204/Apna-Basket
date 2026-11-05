@@ -1,11 +1,35 @@
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const sendEmail = require('../utils/sendEmail');
 
 const generateToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
-const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
+const OTP_VALID_MS = 10 * 60 * 1000;
+const MAX_OTP_ATTEMPTS = 5;
+
+// crypto.randomInt is unpredictable; Math.random is not safe for security codes
+const generateOTP = () => crypto.randomInt(100000, 1000000).toString();
+
+// Only a hash of the OTP is stored, so a database leak does not expose live codes
+const hashOtp = (otp) =>
+  crypto.createHmac('sha256', process.env.JWT_SECRET || '').update(String(otp)).digest('hex');
+
+const otpMatches = (storedHash, otp) => {
+  const a = Buffer.from(String(storedHash || ''), 'utf8');
+  const b = Buffer.from(hashOtp(otp), 'utf8');
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+};
+
+// Sets a fresh OTP on the user document (not saved here) and returns the plain code for the email
+const issueOtp = (user) => {
+  const otp = generateOTP();
+  user.otp = hashOtp(otp);
+  user.otpExpires = Date.now() + OTP_VALID_MS;
+  user.otpAttempts = 0;
+  return otp;
+};
 
 // const sendVerificationEmail = async (user, otp) => {
 //   const message = `Hello ${user.username},\n\nThank you for registering with Apna Basket.\nYour OTP for email verification is: ${otp}\n\nThis OTP will expire in 10 minutes.`;
@@ -75,11 +99,10 @@ const registerUser = async (req, res) => {
       const salt = await bcrypt.genSalt(10);
       existingUser.username = username;
       existingUser.password = await bcrypt.hash(password, salt);
-      existingUser.otp = generateOTP();
-      existingUser.otpExpires = Date.now() + 10 * 60 * 1000;
+      const resendOtpCode = issueOtp(existingUser);
       await existingUser.save();
       try {
-        await sendVerificationEmail(existingUser, existingUser.otp);
+        await sendVerificationEmail(existingUser, resendOtpCode);
       } catch (emailError) {
         return res.status(503).json({
           message: 'Registration could not send the verification email. Configure SMTP_USER and SMTP_PASS on the backend (use a Gmail App Password), then try again.'
@@ -95,17 +118,14 @@ const registerUser = async (req, res) => {
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
-    const otp = generateOTP();
-    const otpExpires = Date.now() + 10 * 60 * 1000;
-
-    const user = await User.create({
+    const user = new User({
       username,
       email,
       password: hashedPassword,
-      verified: false,
-      otp,
-      otpExpires
+      verified: false
     });
+    const otp = issueOtp(user);
+    await user.save();
 
     try {
       await sendVerificationEmail(user, otp);
@@ -136,33 +156,31 @@ const verifyOtp = async (req, res) => {
   const { email, otp } = req.body;
 
   try {
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+    const user = email ? await User.findOne({ email }) : null;
+
+    // Same answer for "no such user" and "already verified": never hand out a token
+    // here without a correct OTP, and don't reveal which emails have accounts.
+    if (!user || user.verified) {
+      return res.status(400).json({ message: 'Invalid or expired OTP. Please request a new one or log in.' });
     }
 
-    if (user.verified) {
-      return res.status(200).json({
-        _id: user._id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        token: generateToken(user._id),
-        message: 'Email already verified'
-      });
-    }
-
-    if (!user.otp || user.otp !== otp) {
-      return res.status(400).json({ message: 'Invalid OTP' });
-    }
-
-    if (user.otpExpires < Date.now()) {
+    if (!user.otp || !user.otpExpires || user.otpExpires < Date.now()) {
       return res.status(400).json({ message: 'OTP has expired. Please request a new one.' });
+    }
+
+    if (user.otpAttempts >= MAX_OTP_ATTEMPTS) {
+      return res.status(429).json({ message: 'Too many wrong attempts. Please request a new OTP.' });
+    }
+
+    if (!otpMatches(user.otp, otp)) {
+      await User.updateOne({ _id: user._id }, { $inc: { otpAttempts: 1 } });
+      return res.status(400).json({ message: 'Invalid OTP' });
     }
 
     user.verified = true;
     user.otp = undefined;
     user.otpExpires = undefined;
+    user.otpAttempts = 0;
     await user.save();
 
     res.status(200).json({
@@ -183,25 +201,28 @@ const verifyOtp = async (req, res) => {
 
 const resendOtp = async (req, res) => {
   const { email } = req.body;
+  const genericReply = { message: 'If this account is waiting for verification, a new OTP has been sent to its email.' };
 
   try {
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+    const user = email ? await User.findOne({ email }) : null;
+
+    // Same reply whether or not the account exists, so emails cannot be probed
+    if (!user || user.verified) {
+      return res.status(200).json(genericReply);
     }
 
-    if (user.verified) {
-      return res.status(400).json({ message: 'Email already verified' });
-    }
-
-    const otp = generateOTP();
-    user.otp = otp;
-    user.otpExpires = Date.now() + 10 * 60 * 1000;
+    const otp = issueOtp(user);
     await user.save();
 
-    await sendVerificationEmail(user, otp);
+    try {
+      await sendVerificationEmail(user, otp);
+    } catch (emailError) {
+      return res.status(503).json({
+        message: 'Could not send the verification email right now. Please try again in a few minutes.'
+      });
+    }
 
-    res.status(200).json({ message: 'A new OTP has been sent to your email.' });
+    res.status(200).json(genericReply);
   } catch (error) {
     res.status(400).json({
       success: false,

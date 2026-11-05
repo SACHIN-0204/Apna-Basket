@@ -12,22 +12,24 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "seed": "node seed.js"
+    "seed": "node seed.js",
+    "test": "node --test test/phase1.test.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^1.41.3",
+    "compression": "^1.7.4",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.7.2",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.7.4",
     "multer": "^2.2.0",
     "multer-storage-cloudinary": "^4.0.0",
     "nodemailer": "^9.0.3",
-    "razorpay": "^2.9.8",
-    "compression": "^1.7.4"
+    "razorpay": "^2.9.8"
   },
   "allowScripts": {
     "bcrypt@6.0.0": true

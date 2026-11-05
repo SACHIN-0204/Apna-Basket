@@ -1,12 +1,12 @@
-const Order = require("../models/Order");
-const User = require("../models/User");
-
 const mongoose = require("mongoose");
+const Order = require("../models/Order");
 const Product = require("../models/Product");
+const settings = require("../config/settings");
+const { calculateTotals, isStudentEmail, normalizeEmail } = require("../utils/pricing");
+const { normalizePhone } = require("../utils/phone");
+const { sendOrderEmail, sendOrderEmailById } = require("../utils/orderEmail");
 
-const DELIVERY_FEE = 0; // ADJUST: flat delivery charge in ₹, if you have one
-
-// Put reserved stock back (used on cancel or failure)
+// Put reserved stock back (used on cancel, expiry or failure)
 const restoreStock = async (items) => {
     await Promise.all(
         items.map((item) =>
@@ -21,92 +21,72 @@ const stockMessage = (unavailable) =>
         .map((u) => (u.available > 0 ? `${u.name} (only ${u.available} left)` : `${u.name} (unavailable)`))
         .join(", ");
 
+const cleanText = (v, max = 200) => String(v ?? "").trim().slice(0, max);
 
-const sendEmail = require("../utils/sendEmail");
-
-const formatOrderItems = (order) => {
-    if (!order?.orderItems?.length) return "No items";
-
-    return order.orderItems
-        .map((item) => {
-            const productName = item.productId?.name || "Product";
-            return `<li style="padding:6px 0; border-bottom:1px solid #f0f0f0;">${productName} × ${item.quantity} <span style="float:right; color:#1f2937;">₹${item.price}</span></li>`;
-        })
-        .join("");
-};
-
-const buildOrderEmail = (order, eventType) => {
-    const customerName = order.user?.name || "Customer";
-    const orderId = order._id || "N/A";
-    const total = order.totalPrice || 0;
-    const paymentMethod = order.paymentMethod || "N/A";
-    const statusText = order.status || "pending";
-
-    let subject = "";
-    let heading = "";
-    let intro = "";
-    let highlight = "";
-
-    switch (eventType) {
-        case "order-confirmed":
-            subject = "Order confirmed - Apna Basket";
-            heading = "Order confirmed";
-            intro = "Thank you for shopping with us. Your order has been received and is now being prepared.";
-            highlight = `Order ID: <strong>${orderId}</strong><br />Payment Method: <strong>${paymentMethod}</strong><br />Total Amount: <strong>₹${total}</strong>`;
-            break;
-        case "payment-success":
-            subject = "Payment successful - Apna Basket";
-            heading = "Payment successful";
-            intro = "We have received your payment successfully and your order is now moving forward.";
-            highlight = `Order ID: <strong>${orderId}</strong><br />Amount Paid: <strong>₹${total}</strong>`;
-            break;
-        case "order-cancelled":
-            subject = "Order cancelled - Apna Basket";
-            heading = "Order cancelled";
-            intro = "Your order has been cancelled as requested. We’re here if you need help.";
-            highlight = `Order ID: <strong>${orderId}</strong><br />Cancelled Amount: <strong>₹${total}</strong>`;
-            break;
-        default:
-            subject = `Order status updated - ${statusText}`;
-            heading = "Order status updated";
-            intro = `Your order status has been updated to <strong>${statusText}</strong>.`;
-            highlight = `Order ID: <strong>${orderId}</strong><br />Current Status: <strong>${statusText}</strong>`;
+// ---------------------------------------------------------------------------
+// Shared pricing step: used by both the quote and the real order, so the customer
+// is always charged exactly what the quote showed.
+// ---------------------------------------------------------------------------
+const priceCart = async (orderItems) => {
+    if (!Array.isArray(orderItems) || orderItems.length === 0) {
+        return { error: { status: 400, message: "Your cart is empty" } };
     }
 
-    const html = `
-      <div style="font-family: Arial, sans-serif; background:#f7f9fc; padding:24px; color:#111827;">
-        <div style="max-width:640px; margin:0 auto; background:#ffffff; border:1px solid #e5e7eb; border-radius:12px; overflow:hidden;">
-          <div style="background:linear-gradient(135deg, #1f4f3d, #2e7d32); padding:24px 28px; color:#ffffff;">
-            <h2 style="margin:0; font-size:24px;">Apna Basket</h2>
-            <p style="margin:6px 0 0; font-size:14px; opacity:0.95;">Fresh essentials, delivered with care</p>
-          </div>
-          <div style="padding:28px;">
-            <h3 style="margin:0 0 10px; font-size:22px; color:#111827;">${heading}</h3>
-            <p style="margin:0 0 14px; font-size:15px; line-height:1.6; color:#374151;">${intro}</p>
-            <div style="background:#f8fafc; padding:14px 16px; border-radius:8px; margin-bottom:16px; font-size:14px; line-height:1.7; color:#111827;">
-              ${highlight}
-            </div>
-            <div style="margin-bottom:12px; font-weight:600; color:#111827;">Order Items</div>
-            <ul style="list-style:none; padding:0; margin:0 0 16px;">
-              ${formatOrderItems(order)}
-            </ul>
-            <p style="margin:0; font-size:14px; color:#6b7280; line-height:1.6;">Thank you for choosing Apna Basket. We appreciate your trust and look forward to serving you again.</p>
-          </div>
-          <div style="background:#f9fafb; padding:16px 28px; font-size:12px; color:#6b7280; text-align:center; border-top:1px solid #e5e7eb;">
-            © 2026 Apna Basket. All rights reserved.
-          </div>
-        </div>
-      </div>
-    `;
+    // 1. Validate ids and quantities, merge duplicate products
+    const wanted = new Map();
+    for (const item of orderItems) {
+        const id = String(item.productId?._id || item.productId || "");
+        const quantity = Number(item.quantity);
+        if (!mongoose.Types.ObjectId.isValid(id) || !Number.isInteger(quantity) || quantity < 1) {
+            return { error: { status: 400, message: "Invalid order item" } };
+        }
+        wanted.set(id, (wanted.get(id) || 0) + quantity);
+    }
 
-    return { subject, html };
+    // 2. Load the real products (real prices and stock) from the database
+    const products = await Product.find({ _id: { $in: [...wanted.keys()] } });
+    const productMap = new Map(products.map((p) => [String(p._id), p]));
+
+    // 3. Check availability
+    const unavailable = [];
+    for (const [id, quantity] of wanted) {
+        const product = productMap.get(id);
+        if (!product || product.isActive === false) {
+            unavailable.push({ productId: id, name: product?.name || "A product", available: 0 });
+        } else if (product.stock < quantity) {
+            unavailable.push({ productId: id, name: product.name, available: product.stock });
+        }
+    }
+
+    // 4. Prices come from the database, never from the browser
+    const items = [...wanted]
+        .filter(([id]) => productMap.has(id))
+        .map(([id, quantity]) => ({ productId: id, quantity, price: productMap.get(id).price }));
+    const itemsTotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+
+    return { wanted, productMap, items, itemsTotal, unavailable };
 };
 
-const sendOrderEmail = async (order, eventType) => {
-    if (!order?.user?.email) return;
+// @desc    Price a cart without creating anything (shown on the checkout page)
+// @route   POST /api/orders/quote
+// @access  Public
+const quoteOrder = async (req, res) => {
+    try {
+        const { orderItems, studentEmail } = req.body || {};
+        const priced = await priceCart(orderItems);
+        if (priced.error) return res.status(priced.error.status).json({ message: priced.error.message });
 
-    const { subject, html } = buildOrderEmail(order, eventType);
-    await sendEmail(order.user.email, subject, html);
+        const studentEmailGiven = Boolean(cleanText(studentEmail));
+        const totals = calculateTotals(priced.itemsTotal, { studentEmail });
+
+        res.status(200).json({
+            ...totals,
+            studentEmailValid: studentEmailGiven ? isStudentEmail(studentEmail) : null,
+            unavailable: priced.unavailable,
+        });
+    } catch (error) {
+        res.status(500).json({ message: "Could not calculate your total" });
+    }
 };
 
 // @desc    Create a new order
@@ -117,44 +97,52 @@ const createOrder = async (req, res) => {
     let orderSaved = false;
 
     try {
-        const { orderItems, address, paymentMethod } = req.body;
+        const { orderItems, address, paymentMethod, contactPhone, studentEmail } = req.body || {};
 
-        if (!Array.isArray(orderItems) || orderItems.length === 0 || !address) {
-            return res.status(400).json({ message: "Invalid order data" });
+        // Delivery details
+        if (!address || typeof address !== "object") {
+            return res.status(400).json({ message: "Delivery address is required" });
+        }
+        const cleanAddress = {
+            fullName: cleanText(address.fullName, 100),
+            street: cleanText(address.street, 250),
+            city: cleanText(address.city, 100),
+            state: cleanText(address.state, 100),
+            zipCode: cleanText(address.zipCode, 10),
+        };
+        if (Object.values(cleanAddress).some((v) => !v)) {
+            return res.status(400).json({ message: "Please fill in all delivery address fields" });
+        }
+        if (!/^\d{6}$/.test(cleanAddress.zipCode)) {
+            return res.status(400).json({ message: "Please enter a valid 6-digit PIN code" });
+        }
+        const phone = normalizePhone(contactPhone ?? address.phone);
+        if (!phone) {
+            return res.status(400).json({ message: "Please enter a valid 10-digit mobile number so we can reach you for delivery" });
         }
 
-        // 1. Clean the request: validate ids and quantities, merge duplicate products
-        const wanted = new Map();
-        for (const item of orderItems) {
-            const id = String(item.productId?._id || item.productId || "");
-            const quantity = Number(item.quantity);
-            if (!mongoose.Types.ObjectId.isValid(id) || !Number.isInteger(quantity) || quantity < 1) {
-                return res.status(400).json({ message: "Invalid order item" });
-            }
-            wanted.set(id, (wanted.get(id) || 0) + quantity);
+        const method = paymentMethod || "Cash on Delivery";
+        if (!settings.PAYMENT_METHODS.includes(method)) {
+            return res.status(400).json({ message: "Unsupported payment method" });
         }
 
-        // 2. Load the real products (real prices and stock) from the database
-        const products = await Product.find({ _id: { $in: [...wanted.keys()] } });
-        const productMap = new Map(products.map((p) => [String(p._id), p]));
-
-        // 3. Check availability
-        const unavailable = [];
-        for (const [id, quantity] of wanted) {
-            const product = productMap.get(id);
-            if (!product || product.isActive === false) {
-                unavailable.push({ productId: id, name: product?.name || "A product", available: 0 });
-            } else if (product.stock < quantity) {
-                unavailable.push({ productId: id, name: product.name, available: product.stock });
-            }
-        }
-        if (unavailable.length) {
-            return res.status(409).json({ message: stockMessage(unavailable), unavailable });
+        const studentEmailGiven = Boolean(cleanText(studentEmail));
+        if (studentEmailGiven && !isStudentEmail(studentEmail)) {
+            return res.status(400).json({
+                message: "The student discount needs a college email (for example name@college.ac.in or name@college.edu).",
+            });
         }
 
-        // 4. Reserve stock atomically. The condition stock >= quantity means two customers
-        //    can never both buy the last item.
-        for (const [id, quantity] of wanted) {
+        // Price and check stock
+        const priced = await priceCart(orderItems);
+        if (priced.error) return res.status(priced.error.status).json({ message: priced.error.message });
+        if (priced.unavailable.length) {
+            return res.status(409).json({ message: stockMessage(priced.unavailable), unavailable: priced.unavailable });
+        }
+
+        // Reserve stock atomically. The condition stock >= quantity means two customers
+        // can never both buy the last item.
+        for (const [id, quantity] of priced.wanted) {
             const updated = await Product.findOneAndUpdate(
                 { _id: id, isActive: { $ne: false }, stock: { $gte: quantity } },
                 { $inc: { stock: -quantity } },
@@ -170,33 +158,29 @@ const createOrder = async (req, res) => {
             reserved.push({ productId: id, quantity });
         }
 
-        // 5. Build the order from DATABASE prices, never from the browser
-        const items = [...wanted].map(([id, quantity]) => ({
-            productId: id,
-            quantity,
-            price: productMap.get(id).price,
-        }));
-        const itemsTotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
-        const totalPrice = Math.round((itemsTotal + DELIVERY_FEE) * 100) / 100;
+        // Totals: one calculation, on the server
+        const totals = calculateTotals(priced.itemsTotal, { studentEmail });
+        const online = method === "Razorpay";
 
         const order = await Order.create({
             user: req.user._id,
-            orderItems: items,
-            totalPrice,
-            address,
-            paymentMethod,
+            orderItems: priced.items,
+            itemsTotal: totals.itemsTotal,
+            deliveryFee: totals.deliveryFee,
+            discount: totals.discount,
+            totalPrice: totals.totalPrice,
+            studentEmail: totals.studentDiscountApplied ? normalizeEmail(studentEmail) : "",
+            address: cleanAddress,
+            contactPhone: phone,
+            paymentMethod: method,
+            paymentStatus: online ? "payment_pending" : "cod_pending",
+            expiresAt: online ? new Date(Date.now() + settings.PAYMENT_HOLD_MINUTES * 60 * 1000) : null,
         });
         orderSaved = true;
 
-        // 6. An email failure must not make a saved order look like a failure
-        try {
-            const populatedOrder = await Order.findById(order._id)
-                .populate("user", "name email")
-                .populate("orderItems.productId", "name");
-            await sendOrderEmail(populatedOrder, "order-confirmed");
-        } catch (emailError) {
-            console.error("Order confirmation email failed:", emailError);
-        }
+        // Cash on Delivery is confirmed now. Online orders are confirmed when the payment succeeds.
+        // Not awaited: a slow mail server must never hold up the customer's checkout.
+        if (!online) sendOrderEmailById(order._id, "order-confirmed");
 
         res.status(201).json({ message: "Order created successfully", order });
     } catch (error) {
@@ -209,60 +193,88 @@ const createOrder = async (req, res) => {
 
 const myOrders = async (req, res) => {
     try {
-       const orders = await Order.find({ user: req.user._id }).populate(`orderItems.productId`, `name price`);
-       res.status(200).json({ orders });
+        const orders = await Order.find({ user: req.user._id })
+            .sort({ createdAt: -1 })
+            .populate("orderItems.productId", "name price");
+        res.status(200).json({ orders });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
 
-const getOrders = async (req, res) =>{
-     try {
-        const orders = await Order.find().populate(`user`, `id name`);
+const getOrders = async (req, res) => {
+    try {
+        const orders = await Order.find()
+            .sort({ createdAt: -1 })
+            .populate("user", "username email")
+            .populate("orderItems.productId", "name");
         res.status(200).json({ orders });
-     } catch (error) {
+    } catch (error) {
         res.status(500).json({ message: error.message });
-     }
+    }
 };
 
+// @desc    Change an order's status (admin)
+// @route   PUT /api/orders/:id/status
 const updateOrderStatus = async (req, res) => {
     try {
-        const { status } = req.body;
+        const { status } = req.body || {};
         if (!status) return res.status(400).json({ message: "Status is required" });
-
-        const order = await Order.findById(req.params.id)
-            .populate("user", "name email")
-            .populate("orderItems.productId", "name");
-
-        if (!order) {
+        if (!Order.ORDER_STATUSES.includes(status)) {
+            return res.status(400).json({ message: `Status must be one of: ${Order.ORDER_STATUSES.join(", ")}` });
+        }
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
             return res.status(404).json({ message: "Order not found" });
         }
 
-        const previousStatus = order.status;
+        const order = await Order.findById(req.params.id)
+            .populate("user", "username email")
+            .populate("orderItems.productId", "name");
 
-        if (previousStatus === status) {
+        if (!order) return res.status(404).json({ message: "Order not found" });
+
+        if (order.status === status) {
             return res.json({ message: "Order status unchanged", order });
         }
         // Stock was already returned when it was cancelled, so don't allow reopening
-        if (previousStatus === "cancelled") {
+        if (order.status === "cancelled") {
             return res.status(400).json({ message: "A cancelled order cannot be reopened" });
         }
 
-        order.status = status;
-        await order.save();
-
         if (status === "cancelled") {
+            // Money already taken? Flag it for a manual refund. Unpaid online attempt? Mark failed.
+            const nextPayment =
+                order.paymentStatus === "paid" ? "refund_pending"
+                : order.paymentStatus === "payment_pending" ? "failed"
+                : order.paymentStatus;
+
+            // Conditional update: only one request can cancel, so stock is returned exactly once
+            const result = await Order.updateOne(
+                { _id: order._id, status: { $ne: "cancelled" } },
+                { $set: { status: "cancelled", paymentStatus: nextPayment, expiresAt: null } }
+            );
+            if (result.modifiedCount === 0) {
+                return res.status(409).json({ message: "This order was just cancelled" });
+            }
+            order.status = "cancelled";
+            order.paymentStatus = nextPayment;
+
             const items = order.orderItems
                 .map((i) => ({ productId: i.productId?._id, quantity: i.quantity }))
                 .filter((i) => i.productId); // skip products that were deleted
             await restoreStock(items);
+        } else {
+            order.status = status;
+            // Cash is collected at the door, so a delivered COD order counts as paid
+            if (status === "delivered" && order.paymentMethod === "Cash on Delivery") {
+                order.paymentStatus = "paid";
+            }
+            await order.save();
         }
 
-        try {
-            await sendOrderEmail(order, status === "cancelled" ? "order-cancelled" : "status-updated");
-        } catch (emailError) {
-            console.error("Order status email failed:", emailError);
-        }
+        // Not awaited, and errors are only logged
+        sendOrderEmail(order, status === "cancelled" ? "order-cancelled" : "status-updated")
+            .catch((emailError) => console.error("Order status email failed:", emailError.message));
 
         res.json({ message: "Order status updated", order });
     } catch (error) {
@@ -270,9 +282,38 @@ const updateOrderStatus = async (req, res) => {
     }
 };
 
+// Cancels online orders that were never paid and returns their stock.
+// Called on a timer from index.js. Safe to run on several servers at once.
+const expireUnpaidOrders = async () => {
+    const stale = await Order.find({
+        paymentStatus: "payment_pending",
+        status: { $ne: "cancelled" },
+        expiresAt: { $lt: new Date() },
+    })
+        .select("_id orderItems")
+        .limit(50)
+        .lean();
+
+    let expired = 0;
+    for (const order of stale) {
+        // If a payment is confirmed at the same moment, only one of the two updates can win
+        const result = await Order.updateOne(
+            { _id: order._id, paymentStatus: "payment_pending", status: { $ne: "cancelled" } },
+            { $set: { status: "cancelled", paymentStatus: "failed", expiresAt: null } }
+        );
+        if (result.modifiedCount === 1) {
+            await restoreStock(order.orderItems.map((i) => ({ productId: i.productId, quantity: i.quantity })));
+            expired += 1;
+        }
+    }
+    return expired;
+};
+
 module.exports = {
+    quoteOrder,
     createOrder,
     myOrders,
     getOrders,
-    updateOrderStatus
+    updateOrderStatus,
+    expireUnpaidOrders,
 };
