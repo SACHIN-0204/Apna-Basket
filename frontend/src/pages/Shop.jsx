@@ -1,32 +1,48 @@
-import React, { useMemo } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
+import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
-import { fetchProducts } from '../redux/productsSlice';
-import { addItem } from '../redux/cartSlice'; // ADJUST 1: your real cart action and path
+import { useShopProducts, useCategories } from '../hooks/useShopProducts';
 
 const SORTS = {
-  newest: { label: 'Newest first', fn: (a, b) => new Date(b.createdAt) - new Date(a.createdAt) },
-  priceLow: { label: 'Price: low to high', fn: (a, b) => a.price - b.price },
-  priceHigh: { label: 'Price: high to low', fn: (a, b) => b.price - a.price },
-  name: { label: 'Name: A to Z', fn: (a, b) => a.name.localeCompare(b.name) },
+  newest: 'Newest first',
+  priceLow: 'Price: low to high',
+  priceHigh: 'Price: high to low',
+  name: 'Name: A to Z',
 };
 
+const SEARCH_DELAY_MS = 300;
+
 const Shop = () => {
-  const dispatch = useDispatch();
   const [params, setParams] = useSearchParams();
 
-  const search = params.get('search') || '';
+  const urlSearch = params.get('search') || '';
   const category = params.get('category') || '';
-  const sort = params.get('sort') || 'newest';
+  const rawSort = params.get('sort') || 'newest';
+  const sort = SORTS[rawSort] ? rawSort : 'newest';
 
-  // ADJUST 2: make this match your slice. It handles an array, or { items / products, loading / status, error }
-  const productsState = useSelector((state) => state.products);
-  const products = Array.isArray(productsState)
-    ? productsState
-    : productsState?.items ?? productsState?.products ?? [];
-  const loading = productsState?.loading === true || productsState?.status === 'loading';
-  const error = productsState?.error || null;
+  // The box updates instantly; the URL (and the server request) follows once typing pauses
+  const [searchInput, setSearchInput] = useState(urlSearch);
+  // Only overwrite the box when the URL changed from outside; never eat a space the person just typed
+  useEffect(() => { setSearchInput((prev) => (prev.trim() === urlSearch ? prev : urlSearch)); }, [urlSearch]);
+
+  useEffect(() => {
+    const trimmed = searchInput.trim();
+    if (trimmed === urlSearch) return undefined;
+    const timer = setTimeout(() => {
+      const next = new URLSearchParams(params);
+      if (trimmed) next.set('search', trimmed);
+      else next.delete('search');
+      setParams(next, { replace: true });
+    }, SEARCH_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [searchInput, urlSearch, params, setParams]);
+
+  const categories = useCategories();
+  const { items, total, hasMore, loading, loadingMore, error, loadMore, retry } = useShopProducts({
+    search: urlSearch,
+    category,
+    sort,
+  });
 
   const updateParam = (key, value) => {
     const next = new URLSearchParams(params);
@@ -35,35 +51,10 @@ const Shop = () => {
     setParams(next, { replace: true });
   };
 
-  const categories = useMemo(
-    () => [...new Set(products.map((p) => p.category))].filter(Boolean).sort(),
-    [products]
-  );
-
-  const visible = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return products
-      .filter((p) => p.isActive !== false)
-      .filter((p) => !category || p.category === category)
-      .filter(
-        (p) =>
-          !q ||
-          p.name.toLowerCase().includes(q) ||
-          (p.brand || '').toLowerCase().includes(q) ||
-          (p.category || '').toLowerCase().includes(q)
-      )
-      .sort((a, b) => {
-        // in-stock items first, then the chosen sort
-        const aOut = a.stock <= 0 ? 1 : 0;
-        const bOut = b.stock <= 0 ? 1 : 0;
-        if (aOut !== bOut) return aOut - bOut;
-        return SORTS[sort] ? SORTS[sort].fn(a, b) : 0;
-      });
-  }, [products, search, category, sort]);
-
-  const handleAddToCart = (product) => {
-  dispatch(addItem({ ...product, quantity: 1 }));
-};
+  const clearFilters = () => {
+    setSearchInput('');
+    setParams({}, { replace: true });
+  };
 
   return (
     <div style={pageStyle}>
@@ -76,15 +67,16 @@ const Shop = () => {
 
       <div style={toolbarStyle}>
         <input
-          type="text"
+          type="search"
           placeholder="Search products, brands..."
-          value={search}
-          onChange={(e) => updateParam('search', e.target.value)}
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
           style={searchStyle}
+          aria-label="Search products"
         />
-        <select value={sort} onChange={(e) => updateParam('sort', e.target.value)} style={selectStyle}>
-          {Object.entries(SORTS).map(([key, s]) => (
-            <option key={key} value={key}>{s.label}</option>
+        <select value={sort} onChange={(e) => updateParam('sort', e.target.value === 'newest' ? '' : e.target.value)} style={selectStyle} aria-label="Sort products">
+          {Object.entries(SORTS).map(([key, label]) => (
+            <option key={key} value={key}>{label}</option>
           ))}
         </select>
       </div>
@@ -100,34 +92,44 @@ const Shop = () => {
 
       {loading && <p style={mutedStyle}>Loading products...</p>}
 
-      {error && !loading && (
+      {error && !loading && items.length === 0 && (
         <div style={messageBoxStyle}>
           <p style={{ margin: '0 0 12px' }}>Could not load products. Please try again.</p>
-          <button onClick={() => dispatch(fetchProducts())} style={retryBtnStyle}>Retry</button>
+          <button onClick={retry} style={retryBtnStyle}>Retry</button>
         </div>
       )}
 
-      {!loading && !error && (
+      {!loading && !(error && items.length === 0) && (
         <>
-          <p style={{ ...mutedStyle, marginBottom: 14 }}>
-            {visible.length} {visible.length === 1 ? 'product' : 'products'}
+          <p style={{ ...mutedStyle, marginBottom: 14 }} aria-live="polite">
+            {total} {total === 1 ? 'product' : 'products'}
             {category && ` in ${category}`}
-            {search && ` matching "${search}"`}
+            {urlSearch && ` matching "${urlSearch}"`}
           </p>
 
-          {visible.length === 0 ? (
+          {items.length === 0 ? (
             <div style={messageBoxStyle}>
               <p style={{ margin: '0 0 12px' }}>No products found.</p>
-              <button onClick={() => setParams({}, { replace: true })} style={retryBtnStyle}>
-                Clear filters
-              </button>
+              <button onClick={clearFilters} style={retryBtnStyle}>Clear filters</button>
             </div>
           ) : (
-            <div style={gridStyle}>
-              {visible.map((p) => (
-                <ProductCard key={p._id} product={p}/>
-              ))}
-            </div>
+            <>
+              <div style={gridStyle}>
+                {items.map((p) => (
+                  <ProductCard key={p._id} product={p} />
+                ))}
+              </div>
+
+              {error && <p style={{ ...mutedStyle, textAlign: 'center', marginTop: 16, color: '#b91c1c' }}>{error}</p>}
+
+              {hasMore && (
+                <div style={{ textAlign: 'center', marginTop: 28 }}>
+                  <button onClick={loadMore} disabled={loadingMore} style={{ ...retryBtnStyle, minHeight: 44, padding: '10px 28px' }}>
+                    {loadingMore ? 'Loading...' : `Show more (${total - items.length} left)`}
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </>
       )}

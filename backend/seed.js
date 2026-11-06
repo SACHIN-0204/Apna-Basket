@@ -8,18 +8,32 @@ const Product = require("./models/Product");
 const Order = require("./models/Order");
 
 const seedDatabase = async () => {
+    // This script DELETES every user, product and order. Never let it run against live data by accident.
+    if (process.env.NODE_ENV === "production" && process.env.SEED_ALLOW_PRODUCTION !== "true") {
+        throw new Error("Refusing to seed while NODE_ENV=production (this wipes all data).");
+    }
+
+    // No default admin password: it must be supplied, and be reasonably strong.
+    const adminPassword = process.env.SEED_ADMIN_PASSWORD;
+    if (!adminPassword || adminPassword.length < 10) {
+        throw new Error("Set SEED_ADMIN_PASSWORD (at least 10 characters) in backend/.env before seeding.");
+    }
+    const adminEmail = (process.env.SEED_ADMIN_EMAIL || "admin@apnabasket.com").toLowerCase();
+
     await connectDB();
 
     await User.deleteMany({});
     await Product.deleteMany({});
     await Order.deleteMany({});
 
-    const hashedAdminPassword = await bcrypt.hash("admin123", 10);
-    const hashedUserPassword = await bcrypt.hash("user123", 10);
+    const hashedAdminPassword = await bcrypt.hash(adminPassword, 10);
+    // Demo customer for local testing only; the password is random and printed once below.
+    const demoUserPassword = require("crypto").randomBytes(9).toString("base64url");
+    const hashedUserPassword = await bcrypt.hash(demoUserPassword, 10);
 
     const adminUser = await User.create({
         username: "admin",
-        email: "admin@apnabasket.com",
+        email: adminEmail,
         password: hashedAdminPassword,
         role: "admin",
         verified: true,
@@ -299,7 +313,11 @@ const seedDatabase = async () => {
                 price: products[2].price,
             },
         ],
+        itemsTotal: products[0].price * 2 + products[2].price,
+        deliveryFee: 0,
+        discount: 0,
         totalPrice: products[0].price * 2 + products[2].price,
+        contactPhone: "9876543210",
         address: {
             fullName: "John Doe",
             street: "12 Main Street",
@@ -313,7 +331,7 @@ const seedDatabase = async () => {
 
     console.log("Database seeded successfully.");
     console.log(`Created admin user: ${adminUser.email}`);
-    console.log(`Created regular user: ${regularUser.email}`);
+    console.log(`Created demo customer: ${regularUser.email} / ${demoUserPassword}`);
     console.log(`Created ${products.length} products`);
 };
 

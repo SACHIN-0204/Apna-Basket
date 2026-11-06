@@ -8,6 +8,34 @@ const Profile = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [addresses, setAddresses] = useState([]);
+  const [addressNote, setAddressNote] = useState("");
+
+  const token = user?.token;
+
+  useEffect(() => {
+    if (!token) return;
+    fetch("/api/me/addresses", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((d) => setAddresses(d.addresses || []))
+      .catch(() => {});
+  }, [token]);
+
+  const changeAddress = async (method, id, body) => {
+    setAddressNote("");
+    try {
+      const res = await fetch(`/api/me/addresses/${id}`, {
+        method,
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Could not update the address");
+      setAddresses(data.addresses || []);
+    } catch (err) {
+      setAddressNote(err.message);
+    }
+  };
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -57,10 +85,36 @@ const Profile = () => {
       <div className="product-detail-card profile-card">
         <div>
           <h2>{user.name || "User"}</h2>
-          <p>{user.email}</p>
+          {user.phone && <p>Mobile: {user.phone}</p>}
+          {user.email && <p>{user.email}</p>}
           <p className="profile-role">Role: {user.role || "customer"}</p>
         </div>
         <Link to="/" className="view-details-button">Continue shopping</Link>
+      </div>
+
+      <div className="product-detail-card" style={{ marginBottom: 16 }}>
+        <h2>Saved addresses</h2>
+        {addressNote && <p className="product-error">{addressNote}</p>}
+        {addresses.length === 0 ? (
+          <p>No saved addresses yet. One is saved automatically with your next order.</p>
+        ) : (
+          addresses.map((a) => (
+            <div key={a._id} style={{ padding: "10px 0", borderBottom: "1px solid #f0f0f0" }}>
+              <strong>{a.label}{a.isDefault ? " (default)" : ""}</strong>
+              <p style={{ margin: "4px 0" }}>{a.fullName}, {a.street}, {a.city}, {a.state} {a.zipCode}</p>
+              {!a.isDefault && (
+                <button type="button" className="back-link" style={{ background: "none", border: 0, cursor: "pointer", padding: 0, marginRight: 14 }}
+                  onClick={() => changeAddress("PUT", a._id, { ...a, isDefault: true })}>
+                  Make default
+                </button>
+              )}
+              <button type="button" className="back-link" style={{ background: "none", border: 0, cursor: "pointer", padding: 0, color: "#b91c1c" }}
+                onClick={() => window.confirm("Delete this address?") && changeAddress("DELETE", a._id)}>
+                Delete
+              </button>
+            </div>
+          ))
+        )}
       </div>
 
       <div className="profile-orders">

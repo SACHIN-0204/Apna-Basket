@@ -1,15 +1,17 @@
 import React from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link } from "react-router-dom";
-import { addToCart, removeToCart, syncCartStock } from "../redux/cartSlice";
+import { addToCart, removeToCart } from "../redux/cartSlice";
 import { useCartStock } from "../hooks/useCartStock";
+import { deliveryFeeFor, useStoreConfig } from "../hooks/useStoreConfig";
 import { optimizeImage } from "../utils/image";
 import "../styles/product.css";
 
 const Cart = () => {
   const dispatch = useDispatch();
   const cartItems = useSelector((state) => state.cart.cartItems);
-  const { products, issues, hasIssues, stockOf } = useCartStock(cartItems);
+  const { issues, hasIssues, stockOf, fixCart } = useCartStock(cartItems);
+  const config = useStoreConfig();
 
   const updateQuantity = (item, quantity) => {
     if (quantity <= 0) {
@@ -20,7 +22,9 @@ const Cart = () => {
   };
 
   const subtotal = cartItems.reduce((total, item) => total + item.price * (item.quantity || 1), 0);
-  const deliveryFee = cartItems.length > 0 ? 40 : 0;
+  // Display only: the server calculates the real total at checkout with the same rule
+  const deliveryFee = deliveryFeeFor(config, subtotal);
+  const amountToFreeDelivery = config.freeDeliveryAbove > 0 ? config.freeDeliveryAbove - subtotal : 0;
   const total = subtotal + deliveryFee;
 
   const issueMessage = (issue) => {
@@ -50,7 +54,7 @@ const Cart = () => {
               {issues.map((issue) => (
                 <div key={issue.id} style={{ marginBottom: 6 }}>{issueMessage(issue)}</div>
               ))}
-              <button type="button" onClick={() => dispatch(syncCartStock(products))} style={fixBtnStyle}>
+              <button type="button" onClick={fixCart} style={fixBtnStyle}>
                 Update cart
               </button>
             </div>
@@ -97,8 +101,15 @@ const Cart = () => {
               </div>
               <div className="summary-row">
                 <span>Delivery</span>
-                <strong>₹{deliveryFee.toFixed(2)}</strong>
+                <strong>{deliveryFee > 0 ? `₹${deliveryFee.toFixed(2)}` : "Free"}</strong>
               </div>
+              {config.freeDeliveryAbove > 0 && (
+                <p style={{ fontSize: '0.85rem', color: amountToFreeDelivery > 0 ? '#92400e' : '#047857', margin: '4px 0 8px' }}>
+                  {amountToFreeDelivery > 0
+                    ? `Add ₹${amountToFreeDelivery.toFixed(0)} more for free delivery`
+                    : 'You get free delivery on this order'}
+                </p>
+              )}
               <div className="summary-row total-row">
                 <span>Total</span>
                 <strong>₹{total.toFixed(2)}</strong>

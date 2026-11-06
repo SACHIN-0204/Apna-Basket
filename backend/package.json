@@ -13,7 +13,8 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "seed": "node seed.js",
-    "test": "node --test test/phase1.test.js"
+    "test": "node --test test/phase1.test.js test/slots.test.js",
+    "test:integration": "node --test test/phase2.integration.test.js test/phase3.integration.test.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const mongoose = require("mongoose");
 const Order = require("../models/Order");
 const { sendOrderEmailById } = require("../utils/orderEmail");
+const { notifyOrderSms } = require("../utils/notify");
 
 const getRazorpay = () => {
     if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
@@ -29,10 +30,14 @@ const safeEqual = (a, b) => {
 const markOrderPaid = async (order, paymentId) => {
     const paid = await Order.updateOne(
         { _id: order._id, paymentStatus: "payment_pending", status: { $ne: "cancelled" } },
-        { $set: { paymentStatus: "paid", razorpayPaymentId: paymentId, expiresAt: null } }
+        {
+            $set: { paymentStatus: "paid", razorpayPaymentId: paymentId, expiresAt: null },
+            $push: { statusHistory: { status: "pending", paymentStatus: "paid", by: "payment", note: "Payment received", at: new Date() } },
+        }
     );
     if (paid.modifiedCount === 1) {
         sendOrderEmailById(order._id, "payment-success"); // not awaited; never throws
+        notifyOrderSms(order, "payment-success");
         return "paid";
     }
 
@@ -168,4 +173,4 @@ const razorpayWebhook = async (req, res) => {
     }
 };
 
-module.exports = { createOrder, verifyPayment, razorpayWebhook };
+module.exports = { createOrder, verifyPayment, razorpayWebhook, hmacHex, safeEqual };

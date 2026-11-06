@@ -1,9 +1,11 @@
 import React, { useState, useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
+import PhoneLogin from "../components/PhoneLogin";
 import "../styles/register.css";
 
 const Login = () => {
+  const [mode, setMode] = useState("phone"); // "phone" (default) or "email"
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
@@ -37,8 +39,10 @@ const Login = () => {
       }
 
       login({
+        id: data._id,
         name: data.username,
         email: data.email,
+        phone: data.phone || "",
         role: data.role || "customer",
         token: data.token,
       });
@@ -61,6 +65,20 @@ const Login = () => {
         </div>
 
         <div className="auth-form-wrap">
+          {mode === "phone" ? (
+            <div className="auth-form">
+              <PhoneLogin
+                heading="Login with mobile"
+                hint="No password needed. New here? Your account is created automatically."
+                onSuccess={() => navigate("/")}
+              />
+              <p className="auth-link">
+                <button type="button" className="back-link" style={{ background: "none", border: 0, cursor: "pointer" }} onClick={() => setMode("email")}>
+                  Use email and password instead
+                </button>
+              </p>
+            </div>
+          ) : (
           <form className="auth-form" onSubmit={handleSubmit}>
             <h2>Login</h2>
             <p>Enter your credentials to access your account.</p>
@@ -102,7 +120,13 @@ const Login = () => {
             <p className="auth-link">
               Don&apos;t have an account? <Link to="/register">Create one</Link>
             </p>
+            <p className="auth-link">
+              <button type="button" className="back-link" style={{ background: "none", border: 0, cursor: "pointer" }} onClick={() => setMode("phone")}>
+                Login with mobile number
+              </button>
+            </p>
           </form>
+          )}
         </div>
       </div>
     </div>

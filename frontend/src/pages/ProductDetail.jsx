@@ -19,9 +19,10 @@ const ProductDetail = () => {
 
   const cartItems = useSelector((state) => state.cart.cartItems);
   const productsState = useSelector((state) => state.products);
-  const allProducts = Array.isArray(productsState)
-    ? productsState
-    : productsState?.items ?? productsState?.products ?? [];
+  const allProducts = useMemo(
+    () => (Array.isArray(productsState) ? productsState : productsState?.items ?? productsState?.products ?? []),
+    [productsState]
+  );
 
   useEffect(() => {
     const fetchProduct = async () => {

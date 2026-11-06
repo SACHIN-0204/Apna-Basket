@@ -3,6 +3,9 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const sendEmail = require('../utils/sendEmail');
+const PhoneOtp = require('../models/PhoneOtp');
+const { normalizePhone } = require('../utils/phone');
+const { sendSms, isConfigured: smsConfigured } = require('../utils/sms');
 
 const generateToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
@@ -235,15 +238,19 @@ const loginUser = async (req, res) => {
   const { email, password } = req.body;
   try {
     const user = await User.findOne({ email });
-    if (user && (await bcrypt.compare(password, user.password))) {
+    if (user && user.password && password && (await bcrypt.compare(password, user.password))) {
       if (!user.verified) {
         return res.status(403).json({ message: 'Please verify your email before logging in.' });
       }
+
+      user.lastLoginAt = new Date();
+      await user.save();
 
       res.status(200).json({
         _id: user._id,
         username: user.username,
         email: user.email,
+        phone: user.phone,
         token: generateToken(user._id),
         role: user.role
       });
@@ -255,6 +262,156 @@ const loginUser = async (req, res) => {
       success: false,
       message: error.message
     });
+  }
+};
+
+
+// ---------------------------------------------------------------------------
+// Phone + OTP sign-in. Doubles as sign-up and as guest checkout: a verified phone
+// number silently gets an account, so there is no registration form and no password.
+// ---------------------------------------------------------------------------
+const PHONE_OTP_VALID_MS = 5 * 60 * 1000;
+const PHONE_RESEND_COOLDOWN_MS = 30 * 1000;
+const PHONE_MAX_SENDS_PER_HOUR = 5;
+const PHONE_MAX_ATTEMPTS = 5;
+
+// The phone number is part of the hash, so a code for one number can never verify another
+const hashPhoneOtp = (phone, otp) =>
+  crypto.createHmac('sha256', process.env.JWT_SECRET || '').update(`${phone}:${otp}`).digest('hex');
+
+const hashMatches = (storedHash, phone, otp) => {
+  const a = Buffer.from(String(storedHash || ''), 'utf8');
+  const b = Buffer.from(hashPhoneOtp(phone, String(otp ?? '').trim()), 'utf8');
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+};
+
+// @route POST /api/auth/otp/request   body: { phone }
+const requestPhoneOtp = async (req, res) => {
+  try {
+    const phone = normalizePhone(req.body?.phone);
+    if (!phone) {
+      return res.status(400).json({ message: 'Please enter a valid 10-digit mobile number.' });
+    }
+    if (!smsConfigured()) {
+      console.error('Phone OTP requested but SMS is not configured (see utils/sms.js)');
+      return res.status(503).json({ message: 'Phone login is not available right now. Please use email login or call the store.' });
+    }
+
+    const now = Date.now();
+    const existing = await PhoneOtp.findOne({ phone });
+    let sendCount = 1;
+    let sendWindowStart = new Date(now);
+
+    if (existing) {
+      const waitMs = existing.lastSentAt.getTime() + PHONE_RESEND_COOLDOWN_MS - now;
+      if (waitMs > 0) {
+        return res.status(429).json({ message: `Please wait ${Math.ceil(waitMs / 1000)} seconds before asking for another code.` });
+      }
+      if (now - existing.sendWindowStart.getTime() < 60 * 60 * 1000) {
+        if (existing.sendCount >= PHONE_MAX_SENDS_PER_HOUR) {
+          return res.status(429).json({ message: 'Too many codes requested for this number. Please try again in an hour.' });
+        }
+        sendCount = existing.sendCount + 1;
+        sendWindowStart = existing.sendWindowStart;
+      }
+    }
+
+    const otp = crypto.randomInt(100000, 1000000).toString();
+    await PhoneOtp.findOneAndUpdate(
+      { phone },
+      {
+        phone,
+        otpHash: hashPhoneOtp(phone, otp),
+        expiresAt: new Date(now + PHONE_OTP_VALID_MS),
+        attempts: 0,
+        lastSentAt: new Date(now),
+        sendCount,
+        sendWindowStart,
+      },
+      { upsert: true, setDefaultsOnInsert: true }
+    );
+
+    try {
+      await sendSms(phone, `${otp} is your Apna Basket login code. It is valid for 5 minutes. Do not share it with anyone.`, {
+        kind: 'otp',
+        vars: { var1: otp },
+      });
+    } catch (smsError) {
+      console.error('OTP SMS failed:', smsError.message);
+      await PhoneOtp.deleteOne({ phone });
+      return res.status(503).json({ message: 'We could not send the code right now. Please try again in a moment.' });
+    }
+
+    res.status(200).json({ message: 'Code sent. Please check your messages.', resendAfterSeconds: PHONE_RESEND_COOLDOWN_MS / 1000 });
+  } catch (error) {
+    console.error('requestPhoneOtp error:', error.message);
+    res.status(500).json({ message: 'Something went wrong. Please try again.' });
+  }
+};
+
+// @route POST /api/auth/otp/verify   body: { phone, otp }
+const verifyPhoneOtp = async (req, res) => {
+  try {
+    const phone = normalizePhone(req.body?.phone);
+    const otp = String(req.body?.otp ?? '').trim();
+    if (!phone || !/^\d{6}$/.test(otp)) {
+      return res.status(400).json({ message: 'Please enter the 6-digit code.' });
+    }
+
+    const record = await PhoneOtp.findOne({ phone });
+    if (!record || record.expiresAt < new Date()) {
+      return res.status(400).json({ message: 'This code has expired. Please request a new one.' });
+    }
+    if (record.attempts >= PHONE_MAX_ATTEMPTS) {
+      return res.status(429).json({ message: 'Too many wrong attempts. Please request a new code.' });
+    }
+
+    if (!hashMatches(record.otpHash, phone, otp)) {
+      await PhoneOtp.updateOne({ _id: record._id }, { $inc: { attempts: 1 } });
+      return res.status(400).json({ message: 'That code is not correct.' });
+    }
+
+    // Single use: only one request can consume a code
+    const consumed = await PhoneOtp.deleteOne({ _id: record._id, otpHash: record.otpHash });
+    if (consumed.deletedCount !== 1) {
+      return res.status(400).json({ message: 'This code has already been used. Please request a new one.' });
+    }
+
+    let user = await User.findOne({ phone });
+    let isNewUser = false;
+    if (!user) {
+      try {
+        user = await User.create({ phone, verified: true, role: 'user', lastLoginAt: new Date() });
+        isNewUser = true;
+      } catch (createError) {
+        if (createError.code !== 11000) throw createError; // two requests raced: use the existing account
+        user = await User.findOne({ phone });
+      }
+    }
+
+    // Admins keep email + password: a stolen SIM must never open the admin panel
+    if (user.role === 'admin') {
+      return res.status(403).json({ message: 'Admin accounts sign in with email and password.' });
+    }
+
+    if (!isNewUser) {
+      user.lastLoginAt = new Date();
+      user.verified = true;
+      await user.save();
+    }
+
+    res.status(200).json({
+      _id: user._id,
+      username: user.username,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      isNewUser,
+      token: generateToken(user._id),
+    });
+  } catch (error) {
+    console.error('verifyPhoneOtp error:', error.message);
+    res.status(500).json({ message: 'Something went wrong. Please try again.' });
   }
 };
 
@@ -275,5 +432,7 @@ module.exports = {
   verifyOtp,
   resendOtp,
   loginUser,
-  getUser
+  getUser,
+  requestPhoneOtp,
+  verifyPhoneOtp
 };

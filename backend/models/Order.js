@@ -13,8 +13,21 @@ const PAYMENT_STATUSES = [
     "refunded",
 ];
 
+const statusEntrySchema = new mongoose.Schema(
+    {
+        status: { type: String },          // fulfilment status at that moment
+        paymentStatus: { type: String },
+        by: { type: String, default: "system" }, // "customer", "admin", "system" or "payment"
+        note: { type: String, default: "" },
+        at: { type: Date, default: Date.now },
+    },
+    { _id: false }
+);
+
 const orderSchema = new mongoose.Schema(
     {
+        // Short readable number shown to customers (AB-10432). Older orders do not have one.
+        orderNumber: { type: String, unique: true, sparse: true },
         user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
         orderItems: [
             {
@@ -48,6 +61,15 @@ const orderSchema = new mongoose.Schema(
         expiresAt: { type: Date, default: null },
 
         status: { type: String, enum: ORDER_STATUSES, default: "pending" },
+        // Chosen delivery window, e.g. { date: "2026-11-06", start: "18:00", end: "21:00", label: "Today, 6 pm - 9 pm" }
+        deliverySlot: {
+            date: { type: String },
+            start: { type: String },
+            end: { type: String },
+            label: { type: String },
+        },
+        // Who changed what and when: powers the tracking timeline
+        statusHistory: { type: [statusEntrySchema], default: [] },
         timestamp: { type: Date, default: Date.now },
     },
     { timestamps: true }

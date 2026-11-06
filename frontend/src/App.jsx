@@ -5,6 +5,7 @@ import { fetchProducts } from './redux/productsSlice';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
+import StickyCartBar from './components/StickyCartBar';
 import AddProducts from './admin/AddProducts';
 import ManageProducts from './admin/ManageProducts';
 import EditProduct from './admin/EditProduct';
@@ -30,6 +31,7 @@ const OrderSuccess = lazy(() => import('./pages/OrderSuccess'));
 const Shop = lazy(() => import('./pages/Shop'));
 const Profile = lazy(() => import('./pages/Profile'));
 const MyOrders = lazy(() => import('./pages/MyOrders'));
+const OrderDetail = lazy(() => import('./pages/OrderDetail'));
 const AdminDashboard = lazy(() => import('./admin/AdminDashboard'));
 const AdminOrders = lazy(() => import('./admin/AdminOrders'));
 // import AdminProducts from './admin/AdminProducts';
@@ -68,6 +70,7 @@ function App() {
           <Route path="/shop" element={<Shop />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/myorders" element={<MyOrders />} />
+          <Route path="/orders/:id" element={<OrderDetail />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/add-product" element={<AddProducts />} />
           <Route path="/admin/orders" element={<AdminOrders />} />
@@ -80,6 +83,7 @@ function App() {
 </Suspense>
       </div> 
      <Footer />
+     <StickyCartBar />
      </ToastProvider>
    </Router>
   );

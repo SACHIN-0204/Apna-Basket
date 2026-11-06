@@ -14,7 +14,7 @@ import "../styles/searchbar.css";
  * `/product/:id` by default — change that in handleSelect if your
  * routes are named differently.
  */
-const SearchBar = ({ items = [], onSelect, placeholder = "Search products…" }) => {
+const SearchBar = ({ items = [], onSelect, placeholder = "Search products…", remote = false }) => {
     const [query, setQuery] = useState("");
     const [matches, setMatches] = useState([]);
     const [open, setOpen] = useState(false);
@@ -35,9 +35,36 @@ const SearchBar = ({ items = [], onSelect, placeholder = "Search products…" })
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    // remote: ask the server, so products beyond the first page of the catalogue are found too
+    useEffect(() => {
+        if (!remote) return undefined;
+        const q = query.trim();
+        if (!q) return undefined;
+        const controller = new AbortController();
+        const timer = setTimeout(async () => {
+            try {
+                const res = await fetch(`/api/products?limit=8&search=${encodeURIComponent(q)}`, { signal: controller.signal });
+                const data = await res.json();
+                if (res.ok) setMatches(data.products || []);
+            } catch {
+                /* aborted or offline: keep the last suggestions */
+            }
+        }, 250);
+        return () => {
+            clearTimeout(timer);
+            controller.abort();
+        };
+    }, [remote, query]);
+
     const runSearch = (value) => {
         setQuery(value);
         setActiveIndex(-1);
+
+        if (remote) {
+            setOpen(Boolean(value.trim()));
+            if (!value.trim()) setMatches([]);
+            return;
+        }
 
         const trimmed = value.trim();
         if (!trimmed) {

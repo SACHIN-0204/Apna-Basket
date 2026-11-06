@@ -15,7 +15,10 @@ const authLimiter = make(15 * 60 * 1000, 30, "Too many attempts. Please try agai
 // Anything that sends an email: stops inbox flooding and SMTP quota burn
 const otpEmailLimiter = make(15 * 60 * 1000, 6, "Too many OTP requests. Please try again in 15 minutes.");
 
+// Phone codes cost money per SMS: limit how many one IP can request
+const phoneOtpLimiter = make(15 * 60 * 1000, 10, "Too many code requests. Please try again in 15 minutes.");
+
 // Price quotes are public, so keep them from being used to hammer the database
 const quoteLimiter = make(60 * 1000, 60, "Too many requests. Please slow down.");
 
-module.exports = { authLimiter, otpEmailLimiter, quoteLimiter };
+module.exports = { authLimiter, otpEmailLimiter, phoneOtpLimiter, quoteLimiter };

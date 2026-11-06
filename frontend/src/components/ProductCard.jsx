@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { addItem } from '../redux/cartSlice';
+import { addItem, addToCart, removeToCart } from '../redux/cartSlice';
 import { optimizeImage } from '../utils/image';
 import { useToast } from './Toast';
 
@@ -10,13 +10,8 @@ const LOW_STOCK = 5;
 const ProductCard = ({ product, onAddToCart }) => {
   const dispatch = useDispatch();
   const toast = useToast();
-  const [justAdded, setJustAdded] = useState(false);
-  const timerRef = useRef(null);
 
   const cartItems = useSelector((state) => state.cart?.cartItems ?? []);
-
-  // Clear the "Added" timer if the card unmounts
-  useEffect(() => () => clearTimeout(timerRef.current), []);
 
   if (!product) return null;
 
@@ -36,29 +31,22 @@ const ProductCard = ({ product, onAddToCart }) => {
       onAddToCart(product);
       return;
     }
-
-    if (maxedOut) {
-      toast.warning(`Only ${stock} available, and all of them are already in your cart.`, {
-        actionLabel: 'View Cart',
-        actionTo: '/cart',
-      });
-      return;
-    }
-
     dispatch(addItem({ ...product, quantity: 1 }));
     toast.success(`${name} added to cart`, { actionLabel: 'View Cart', actionTo: '/cart' });
-
-    setJustAdded(true);
-    clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setJustAdded(false), 1500);
   };
 
-  const buttonDisabled = outOfStock;
-  const buttonLabel = outOfStock
-    ? 'Unavailable'
-    : justAdded
-    ? '✓ Added'
-    : 'Add to Cart';
+  // The stepper sets the exact quantity, capped at stock; going below 1 removes the item
+  const setQuantity = (qty) => {
+    if (qty <= 0) {
+      dispatch(removeToCart(_id));
+      return;
+    }
+    if (qty > stock) {
+      toast.warning(`Only ${stock} available.`, { actionLabel: 'View Cart', actionTo: '/cart' });
+      return;
+    }
+    dispatch(addToCart({ ...product, quantity: qty }));
+  };
 
   return (
     <div style={cardStyle}>
@@ -91,21 +79,32 @@ const ProductCard = ({ product, onAddToCart }) => {
         </div>
 
         {lowStock && <div style={lowStockStyle}>Only {stock} left</div>}
-        {inCart > 0 && !outOfStock && <div style={inCartStyle}>{inCart} in cart</div>}
 
-        <button
-          onClick={handleAdd}
-          disabled={buttonDisabled}
-          style={{
-            ...addBtnStyle,
-            background: outOfStock ? '#e5e7eb' : justAdded ? '#16a34a' : '#111827',
-            color: outOfStock ? '#9ca3af' : '#fff',
-            cursor: outOfStock ? 'not-allowed' : 'pointer',
-            opacity: maxedOut && !justAdded ? 0.75 : 1,
-          }}
-        >
-          {buttonLabel}
-        </button>
+        {outOfStock ? (
+          <button disabled style={{ ...addBtnStyle, background: '#e5e7eb', color: '#9ca3af', cursor: 'not-allowed' }}>
+            Unavailable
+          </button>
+        ) : inCart > 0 ? (
+          <div style={stepperStyle} role="group" aria-label={`Quantity of ${name}`}>
+            <button type="button" onClick={() => setQuantity(inCart - 1)} style={stepBtnStyle} aria-label={`Remove one ${name}`}>
+              {inCart === 1 ? '🗑' : '−'}
+            </button>
+            <span style={stepQtyStyle} aria-live="polite">{inCart}</span>
+            <button
+              type="button"
+              onClick={() => setQuantity(inCart + 1)}
+              disabled={maxedOut}
+              style={{ ...stepBtnStyle, opacity: maxedOut ? 0.4 : 1, cursor: maxedOut ? 'not-allowed' : 'pointer' }}
+              aria-label={`Add one more ${name}`}
+            >
+              +
+            </button>
+          </div>
+        ) : (
+          <button onClick={handleAdd} style={{ ...addBtnStyle, background: '#111827', color: '#fff', cursor: 'pointer' }}>
+            Add to Cart
+          </button>
+        )}
       </div>
     </div>
   );
@@ -131,10 +130,19 @@ const unitStyle = { fontSize: '0.85rem', color: '#6b7280' };
 const priceStyle = { fontSize: '1.2rem', fontWeight: 700, color: '#111827' };
 const mrpStyle = { fontSize: '0.9rem', color: '#9ca3af', textDecoration: 'line-through' };
 const lowStockStyle = { fontSize: '0.8rem', color: '#b45309', marginTop: 4 };
-const inCartStyle = { fontSize: '0.8rem', color: '#047857', marginTop: 4 };
 const addBtnStyle = {
-  width: '100%', marginTop: 12, padding: '11px 0', border: 'none',
+  width: '100%', marginTop: 12, minHeight: 44, padding: '11px 0', border: 'none',
   borderRadius: 10, fontWeight: 600, fontSize: '0.95rem', transition: 'background 150ms ease',
 };
+// 44px tap targets, comfortable on a phone
+const stepperStyle = {
+  display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12,
+  background: '#111827', borderRadius: 10, overflow: 'hidden',
+};
+const stepBtnStyle = {
+  width: 48, minHeight: 44, border: 'none', background: 'transparent', color: '#fff',
+  fontSize: '1.25rem', fontWeight: 600, cursor: 'pointer',
+};
+const stepQtyStyle = { color: '#fff', fontWeight: 700, minWidth: 28, textAlign: 'center' };
 
 export default ProductCard;

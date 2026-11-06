@@ -8,6 +8,7 @@ const connectDB = require("./config/db");
 dotenv.config({ path: path.join(__dirname, ".env") });
 
 const { expireUnpaidOrders } = require("./controllers/orderController");
+const User = require("./models/User");
 
 const app = express();
 app.disable("x-powered-by");
@@ -42,7 +43,7 @@ app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 // Caching rules for API GET requests:
 //  - Public catalogue data may be cached briefly by the browser and the CDN.
 //  - Anything personal, admin-only, or sent with a login token is never cached.
-const PRIVATE_API = /^\/api\/(auth|orders|payments|analytics|contact)(\/|$)|^\/api\/products\/admin(\/|$)/i;
+const PRIVATE_API = /^\/api\/(auth|me|orders|payments|analytics|contact)(\/|$)|^\/api\/store\/slots(\/|$)|^\/api\/products\/admin(\/|$)/i;
 app.use((req, res, next) => {
   if (req.method === "GET" && req.path.startsWith("/api/")) {
     const isPrivate = PRIVATE_API.test(req.path) || Boolean(req.headers.authorization);
@@ -58,6 +59,8 @@ app.use((req, res, next) => {
 
 
 app.use("/api/auth", require("./routes/authRoutes"));
+app.use("/api/me", require("./routes/meRoutes"));
+app.use("/api/store", require("./routes/storeRoutes"));
 app.use("/api/products", require("./routes/productRoutes"));
 app.use("/api/orders", require("./routes/orderRoutes"));
 app.use("/api/payments", require("./routes/paymentRoutes"));
@@ -80,6 +83,14 @@ const PORT = Number(process.env.PORT) || 5000;
 
 const startServer = async () => {
   await connectDB();
+
+  // Phase 2 made email optional, so the old unique email index must become a sparse one.
+  // syncIndexes only touches the User collection and is a no-op once it is up to date.
+  try {
+    await User.syncIndexes();
+  } catch (e) {
+    console.error("User index sync failed (phone-only sign-ups may fail until fixed):", e.message);
+  }
 
   app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);

@@ -1,18 +1,46 @@
 const mongoose = require('mongoose');
 
+const addressSchema = new mongoose.Schema(
+    {
+        label: { type: String, enum: ['Home', 'Work', 'Other'], default: 'Home' },
+        fullName: { type: String, required: true, trim: true, maxlength: 100 },
+        phone: { type: String, default: '' },
+        street: { type: String, required: true, trim: true, maxlength: 250 },
+        city: { type: String, required: true, trim: true, maxlength: 100 },
+        state: { type: String, required: true, trim: true, maxlength: 100 },
+        zipCode: { type: String, required: true, trim: true },
+        isDefault: { type: Boolean, default: false },
+    },
+    { timestamps: true }
+);
+
 const userSchema = new mongoose.Schema({
     username : {
         type : String,
-        required : true
+        default : 'Customer'
     },
+    // Email and password are optional: customers can sign in with a verified phone number only.
+    // sparse + unique lets many phone-only customers exist without an email.
     email : {
         type : String,
-        required : true,
-        unique : true
+        unique : true,
+        sparse : true,
+        trim : true
     },
     password : {
+        type : String
+    },
+    phone : {
         type : String,
-        required : true
+        unique : true,
+        sparse : true
+    },
+    addresses : {
+        type : [addressSchema],
+        default : []
+    },
+    lastLoginAt : {
+        type : Date
     },
     role : {
         type : String,
@@ -21,9 +49,9 @@ const userSchema = new mongoose.Schema({
     },
     verified : {
         type : Boolean,
-        default : false 
+        default : false
     },
-    // Stores a HASH of the OTP, never the code itself
+    // Stores a HASH of the email OTP, never the code itself
     otp : {
         type : String,
         default : null

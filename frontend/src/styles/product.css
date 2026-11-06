@@ -360,6 +360,8 @@
 .remove-btn {
   border: none;
   background: #f3f4f6;
+  min-width: 44px;
+  min-height: 44px;
   padding: 6px 10px;
   border-radius: 8px;
   cursor: pointer;

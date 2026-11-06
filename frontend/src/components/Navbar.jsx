@@ -10,7 +10,6 @@ const Navbar = () => {
     const { user, logout } = useContext(AuthContext);
     const [menuOpen, setMenuOpen] = useState(false);
     const cartItems = useSelector((state) => state.cart.cartItems);
-    const products = useSelector((state) => state.products.items);
     const navigate = useNavigate();
     const location = useLocation();
     const showSearch = location.pathname === "/" || location.pathname === "/shop";
@@ -66,7 +65,7 @@ const Navbar = () => {
         </nav>
         {showSearch && (
             <div className="navbar-search-row">
-                <SearchBar items={products} placeholder="Search groceries, snacks, essentials…" />
+                <SearchBar remote placeholder="Search groceries, snacks, essentials…" />
             </div>
         )}
         </>

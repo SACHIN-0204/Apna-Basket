@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const Product = require("../models/Product.js");
 const cloudinary = require("../config/cloudinary.js");
 
@@ -35,39 +36,61 @@ const getAdminProducts = async (req, res) => {
   }
 };
 
-// @desc    Get all products (supports ?category= & ?search=)
+// Sort choices for the shop. In-stock products always come first.
+const SORTS = {
+  newest: { createdAt: -1 },
+  priceLow: { price: 1 },
+  priceHigh: { price: -1 },
+  name: { name: 1 },
+};
+
+const LIST_FIELDS = {
+  name: 1, description: 1, brand: 1, category: 1, unit: 1, price: 1, mrp: 1,
+  stock: 1, imageUrl: 1, isActive: 1, rating: 1, numReviews: 1, createdAt: 1,
+};
+
+// @desc    List products.
+//   ?category=  ?search= (name, brand or category)  ?sort=newest|priceLow|priceHigh|name
+//   ?ids=a,b,c  (up to 100 specific products, used to refresh the cart)
+//   ?page=&limit=  turns on pagination and returns { products, page, limit, total, totalPages, hasMore }
+//   Without ?limit the old plain-array response is kept for existing clients.
 const getProducts = async (req, res) => {
   try {
-    const { category, search } = req.query;
+    const { category, search, ids, sort } = req.query;
     const filter = { isActive: { $ne: false } }; // also matches old products without the field
 
-    if (category) filter.category = category;
+    if (ids) {
+      const list = String(ids)
+        .split(",")
+        .filter((id) => mongoose.Types.ObjectId.isValid(id))
+        .slice(0, 100)
+        .map((id) => new mongoose.Types.ObjectId(id));
+      filter._id = { $in: list };
+    }
+    if (category) filter.category = String(category);
     if (search) {
-      const regex = new RegExp(escapeRegex(search), "i");
-      filter.$or = [{ name: regex }, { brand: regex }];
+      const regex = new RegExp(escapeRegex(String(search).trim().slice(0, 60)), "i");
+      filter.$or = [{ name: regex }, { brand: regex }, { category: regex }];
     }
 
-    // Keep the existing array response for compatibility, but support pagination
-    // when the client sends ?page=&limit=. Lean documents are much cheaper to serialize.
     const page = Math.max(Number.parseInt(req.query.page || "1", 10) || 1, 1);
     const requestedLimit = Number.parseInt(req.query.limit || "0", 10) || 0;
     const limit = Math.min(Math.max(requestedLimit, 0), 60);
 
-    let query = Product.find(filter)
-      .sort({ createdAt: -1 })
-      .select("name description brand category unit price mrp stock imageUrl isActive rating numReviews createdAt")
-      .lean();
-
     if (limit > 0) {
-      query = query.skip((page - 1) * limit).limit(limit);
-    }
+      const sortSpec = SORTS[sort] || SORTS.newest;
+      const [products, total] = await Promise.all([
+        Product.aggregate([
+          { $match: filter },
+          { $addFields: { _soldOut: { $cond: [{ $lte: ["$stock", 0] }, 1, 0] } } },
+          { $sort: { _soldOut: 1, ...sortSpec, _id: 1 } },
+          { $skip: (page - 1) * limit },
+          { $limit: limit },
+          { $project: LIST_FIELDS },
+        ]).collation({ locale: "en", strength: 2 }),
+        Product.countDocuments(filter),
+      ]);
 
-    const products = await query.exec();
-
-    // Preserve the legacy array response for existing clients.
-    // When pagination is explicitly requested, return metadata too.
-    if (limit > 0) {
-      const total = await Product.countDocuments(filter);
       return res.status(200).json({
         products,
         page,
@@ -78,7 +101,23 @@ const getProducts = async (req, res) => {
       });
     }
 
+    // Legacy array response
+    const products = await Product.find(filter)
+      .sort({ createdAt: -1 })
+      .select(Object.keys(LIST_FIELDS).join(" "))
+      .lean();
     res.status(200).json(products);
+  } catch (error) {
+    console.error("getProducts failed:", error.message);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// @desc    Category names that currently have visible products
+const getCategories = async (req, res) => {
+  try {
+    const categories = await Product.distinct("category", { isActive: { $ne: false } });
+    res.status(200).json(categories.filter(Boolean).sort((a, b) => a.localeCompare(b)));
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
@@ -158,4 +197,4 @@ const deleteProduct = async (req, res) => {
   }
 };
 
-module.exports = { getAdminProducts, getProducts, getProductById, createProduct, updateProduct, deleteProduct };
+module.exports = { getAdminProducts, getProducts, getCategories, getProductById, createProduct, updateProduct, deleteProduct };

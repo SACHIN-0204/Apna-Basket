@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
+import { ORDER_STATUS_LABELS, paymentStatusLabel, orderRef } from '../utils/orderLabels';
 
 const AdminOrders = () => {
   const { user } = useContext(AuthContext);
@@ -7,7 +8,7 @@ const AdminOrders = () => {
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
-  const getOrderUserName = (order) => order.user?.name || order.userId?.name || 'Deleted User';
+  const getOrderUserName = (order) => order.user?.username || 'Deleted User';
   const getOrderDate = (order) => {
     const dateValue = order.createdAt || order.timestamp;
     return dateValue
@@ -50,8 +51,11 @@ const AdminOrders = () => {
 
     const data = await res.json();
     if (res.ok) {
-      setOrders(orders.map(order => order._id === id ? { ...order, status } : order));
-      setSuccessMessage(`Order ${id.substring(0, 8)} status updated to ${status}.`);
+      // The server also changes the payment state on cancel (for example "refund pending"), so use its copy
+      setOrders(orders.map(order => order._id === id
+        ? { ...order, status: data.order?.status ?? status, paymentStatus: data.order?.paymentStatus ?? order.paymentStatus }
+        : order));
+      setSuccessMessage(`Order ${orderRef(orders.find(o => o._id === id) || { _id: id })} status updated to ${ORDER_STATUS_LABELS[status] || status}.`);
       setErrorMessage("");
       setTimeout(() => setSuccessMessage(""), 3000);
     } else {
@@ -83,8 +87,11 @@ const AdminOrders = () => {
           <thead>
             <tr style={rowStyle}>
               <th style={thStyle}>ORDER ID</th>
-              <th style={thStyle}>USER</th>
+              <th style={thStyle}>CUSTOMER</th>
+              <th style={thStyle}>PHONE</th>
+              <th style={thStyle}>DELIVER BY</th>
               <th style={thStyle}>TOTAL</th>
+              <th style={thStyle}>PAYMENT</th>
               <th style={thStyle}>DATE</th>
               <th style={thStyle}>STATUS</th>
             </tr>
@@ -92,9 +99,16 @@ const AdminOrders = () => {
           <tbody>
             {orders.map(order => (
               <tr key={order._id} style={rowStyle}>
-                <td style={tdStyle}>{order._id.substring(0, 8)}...</td>
+                <td style={tdStyle}>{orderRef(order)}</td>
                 <td style={tdStyle}>{getOrderUserName(order)}</td>
+                <td style={tdStyle}>
+                  {order.contactPhone ? <a href={`tel:+91${order.contactPhone}`}>{order.contactPhone}</a> : '—'}
+                </td>
+                <td style={tdStyle}>{order.deliverySlot?.label || '—'}</td>
                 <td style={tdStyle}>₹{Number(order.totalPrice || 0).toFixed(2)}</td>
+                <td style={tdStyle}>
+                  {order.paymentMethod === 'Razorpay' ? 'Online' : 'COD'} · {paymentStatusLabel(order.paymentStatus)}
+                </td>
                 <td style={tdStyle}>{getOrderDate(order)}</td>
                 <td style={tdStyle}>
                   <select 
@@ -102,9 +116,11 @@ const AdminOrders = () => {
                     onChange={(e) => updateStatus(order._id, e.target.value)}
                     style={{ background: '#f8fafc', color: '#111827', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: '8px', outline: 'none' }}
                   >
-                    <option value="pending">Pending</option>
-                    <option value="shipped">Shipped</option>
-                    <option value="delivered">Delivered</option>
+                    {Object.entries(ORDER_STATUS_LABELS).map(([value, label]) => (
+                      <option key={value} value={value} disabled={order.status === 'cancelled' && value !== 'cancelled'}>
+                        {label}
+                      </option>
+                    ))}
                   </select>
                 </td>
               </tr>
