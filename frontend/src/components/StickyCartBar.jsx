@@ -2,6 +2,7 @@ import React from "react";
 import { useSelector } from "react-redux";
 import { Link, useLocation } from "react-router-dom";
 import { deliveryFeeFor, useStoreConfig } from "../hooks/useStoreConfig";
+import { useT } from "../i18n/LanguageContext";
 
 // Pages where a "view cart" bar would only get in the way
 const HIDDEN_ON = /^\/(cart|checkout|order-success|login|register|admin)(\/|$)/;
@@ -12,6 +13,7 @@ const StickyCartBar = () => {
   const { pathname } = useLocation();
   const cartItems = useSelector((state) => state.cart.cartItems);
   const config = useStoreConfig();
+  const { t } = useT();
 
   if (cartItems.length === 0 || HIDDEN_ON.test(pathname)) return null;
 
@@ -25,19 +27,19 @@ const StickyCartBar = () => {
       {/* Keeps the footer from being hidden behind the bar */}
       <div aria-hidden="true" style={{ height: 84 }} />
       <div style={barWrapStyle}>
-        <Link to="/cart" style={barStyle} aria-label={`View cart, ${count} ${count === 1 ? "item" : "items"}, ${money(subtotal)}`}>
+        <Link to="/cart" style={barStyle} aria-label={t("bar.summaryAria", { count, unit: count === 1 ? t("bar.item") : t("bar.items"), total: money(subtotal) })}>
           <span>
-            <strong>{count} {count === 1 ? "item" : "items"}</strong> · {money(subtotal)}
+            <strong>{count} {count === 1 ? t("bar.item") : t("bar.items")}</strong> · {money(subtotal)}
             {config.freeDeliveryAbove > 0 && (
               <small style={hintStyle}>
                 {remaining > 0
-                  ? `Add ${money(remaining)} more for free delivery`
-                  : "Free delivery on this order"}
+                  ? t("bar.addMore", { amount: money(remaining) })
+                  : t("bar.freeDelivery")}
               </small>
             )}
-            {config.freeDeliveryAbove === 0 && fee > 0 && <small style={hintStyle}>+ {money(fee)} delivery</small>}
+            {config.freeDeliveryAbove === 0 && fee > 0 && <small style={hintStyle}>{t("bar.plusDelivery", { fee: money(fee) })}</small>}
           </span>
-          <span style={ctaStyle}>View cart →</span>
+          <span style={ctaStyle}>{t("bar.viewCart")}</span>
         </Link>
       </div>
     </>

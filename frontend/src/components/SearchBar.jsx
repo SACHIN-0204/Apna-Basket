@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useT } from "../i18n/LanguageContext";
 import "../styles/searchbar.css";
 
 /**
@@ -15,6 +16,7 @@ import "../styles/searchbar.css";
  * routes are named differently.
  */
 const SearchBar = ({ items = [], onSelect, placeholder = "Search products…", remote = false }) => {
+    const { t, tc } = useT();
     const [query, setQuery] = useState("");
     const [matches, setMatches] = useState([]);
     const [open, setOpen] = useState(false);
@@ -152,10 +154,10 @@ const SearchBar = ({ items = [], onSelect, placeholder = "Search products…", r
                     onFocus={() => query.trim() && setOpen(true)}
                     placeholder={placeholder}
                     autoComplete="off"
-                    aria-label="Search"
+                    aria-label={t("search.aria")}
                 />
                 {query && (
-                    <button className="searchbar-clear" onClick={handleClear} aria-label="Clear search">
+                    <button className="searchbar-clear" onClick={handleClear} aria-label={t("search.clear")}>
                         ✕
                     </button>
                 )}
@@ -164,7 +166,7 @@ const SearchBar = ({ items = [], onSelect, placeholder = "Search products…", r
             {open && (
                 <div className="searchbar-results">
                     {matches.length === 0 ? (
-                        <div className="searchbar-empty">No results for "{query}"</div>
+                        <div className="searchbar-empty">{t("search.noResults", { query })}</div>
                     ) : (
                         matches.map((item, i) => (
                             <div
@@ -176,7 +178,7 @@ const SearchBar = ({ items = [], onSelect, placeholder = "Search products…", r
                                 }}
                             >
                                 <span>{highlight(getItemName(item))}</span>
-                                {item.category && <span className="searchbar-tag">{item.category}</span>}
+                                {item.category && <span className="searchbar-tag">{tc(item.category)}</span>}
                             </div>
                         ))
                     )}

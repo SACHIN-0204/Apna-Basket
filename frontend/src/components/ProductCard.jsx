@@ -4,12 +4,14 @@ import { useDispatch, useSelector } from 'react-redux';
 import { addItem, addToCart, removeToCart } from '../redux/cartSlice';
 import { optimizeImage } from '../utils/image';
 import { useToast } from './Toast';
+import { useT } from '../i18n/LanguageContext';
 
 const LOW_STOCK = 5;
 
 const ProductCard = ({ product, onAddToCart }) => {
   const dispatch = useDispatch();
   const toast = useToast();
+  const { t } = useT();
 
   const cartItems = useSelector((state) => state.cart?.cartItems ?? []);
 
@@ -32,7 +34,7 @@ const ProductCard = ({ product, onAddToCart }) => {
       return;
     }
     dispatch(addItem({ ...product, quantity: 1 }));
-    toast.success(`${name} added to cart`, { actionLabel: 'View Cart', actionTo: '/cart' });
+    toast.success(t('card.added', { name }), { actionLabel: t('card.viewCart'), actionTo: '/cart' });
   };
 
   // The stepper sets the exact quantity, capped at stock; going below 1 removes the item
@@ -42,7 +44,7 @@ const ProductCard = ({ product, onAddToCart }) => {
       return;
     }
     if (qty > stock) {
-      toast.warning(`Only ${stock} available.`, { actionLabel: 'View Cart', actionTo: '/cart' });
+      toast.warning(t('card.onlyAvailable', { count: stock }), { actionLabel: t('card.viewCart'), actionTo: '/cart' });
       return;
     }
     dispatch(addToCart({ ...product, quantity: qty }));
@@ -61,8 +63,8 @@ const ProductCard = ({ product, onAddToCart }) => {
             decoding="async"
             style={{ ...imageStyle, opacity: outOfStock ? 0.5 : 1 }}
           />
-          {discount > 0 && !outOfStock && <span style={discountBadgeStyle}>{discount}% OFF</span>}
-          {outOfStock && <span style={soldOutBadgeStyle}>Out of stock</span>}
+          {discount > 0 && !outOfStock && <span style={discountBadgeStyle}>{t('card.off', { percent: discount })}</span>}
+          {outOfStock && <span style={soldOutBadgeStyle}>{t('card.outOfStock')}</span>}
         </div>
 
         <div style={{ padding: '14px 14px 0' }}>
@@ -78,15 +80,15 @@ const ProductCard = ({ product, onAddToCart }) => {
           {mrp > price && <span style={mrpStyle}>₹{mrp}</span>}
         </div>
 
-        {lowStock && <div style={lowStockStyle}>Only {stock} left</div>}
+        {lowStock && <div style={lowStockStyle}>{t('card.onlyLeft', { count: stock })}</div>}
 
         {outOfStock ? (
           <button disabled style={{ ...addBtnStyle, background: '#e5e7eb', color: '#9ca3af', cursor: 'not-allowed' }}>
-            Unavailable
+            {t('card.unavailable')}
           </button>
         ) : inCart > 0 ? (
-          <div style={stepperStyle} role="group" aria-label={`Quantity of ${name}`}>
-            <button type="button" onClick={() => setQuantity(inCart - 1)} style={stepBtnStyle} aria-label={`Remove one ${name}`}>
+          <div style={stepperStyle} role="group" aria-label={t('card.qtyOf', { name })}>
+            <button type="button" onClick={() => setQuantity(inCart - 1)} style={stepBtnStyle} aria-label={t('card.removeOne', { name })}>
               {inCart === 1 ? '🗑' : '−'}
             </button>
             <span style={stepQtyStyle} aria-live="polite">{inCart}</span>
@@ -95,14 +97,14 @@ const ProductCard = ({ product, onAddToCart }) => {
               onClick={() => setQuantity(inCart + 1)}
               disabled={maxedOut}
               style={{ ...stepBtnStyle, opacity: maxedOut ? 0.4 : 1, cursor: maxedOut ? 'not-allowed' : 'pointer' }}
-              aria-label={`Add one more ${name}`}
+              aria-label={t('card.addOne', { name })}
             >
               +
             </button>
           </div>
         ) : (
           <button onClick={handleAdd} style={{ ...addBtnStyle, background: '#111827', color: '#fff', cursor: 'pointer' }}>
-            Add to Cart
+            {t('card.add')}
           </button>
         )}
       </div>

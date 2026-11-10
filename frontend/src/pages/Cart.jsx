@@ -5,9 +5,11 @@ import { addToCart, removeToCart } from "../redux/cartSlice";
 import { useCartStock } from "../hooks/useCartStock";
 import { deliveryFeeFor, useStoreConfig } from "../hooks/useStoreConfig";
 import { optimizeImage } from "../utils/image";
+import { useT } from "../i18n/LanguageContext";
 import "../styles/product.css";
 
 const Cart = () => {
+  const { t } = useT();
   const dispatch = useDispatch();
   const cartItems = useSelector((state) => state.cart.cartItems);
   const { issues, hasIssues, stockOf, fixCart } = useCartStock(cartItems);
@@ -30,22 +32,22 @@ const Cart = () => {
   const issueMessage = (issue) => {
     switch (issue.type) {
       case 'reduced':
-        return `Only ${issue.available} of "${issue.name}" left. Your quantity will be reduced.`;
+        return t('cart.issue.reduced', { available: issue.available, name: issue.name });
       case 'price':
-        return `The price of "${issue.name}" has changed to ₹${issue.newPrice}.`;
+        return t('cart.issue.price', { name: issue.name, price: issue.newPrice });
       default:
-        return `"${issue.name}" is no longer available and will be removed.`;
+        return t('cart.issue.removed', { name: issue.name });
     }
   };
 
   return (
     <div className="product-detail-page">
-      <h1>Your Cart</h1>
+      <h1>{t('cart.title')}</h1>
 
       {cartItems.length === 0 ? (
         <div className="product-detail-card">
-          <p>Your cart is empty.</p>
-          <Link to="/shop" className="view-details-button">Continue shopping</Link>
+          <p>{t('cart.empty')}</p>
+          <Link to="/shop" className="view-details-button">{t('common.continueShopping')}</Link>
         </div>
       ) : (
         <>
@@ -55,7 +57,7 @@ const Cart = () => {
                 <div key={issue.id} style={{ marginBottom: 6 }}>{issueMessage(issue)}</div>
               ))}
               <button type="button" onClick={fixCart} style={fixBtnStyle}>
-                Update cart
+                {t('cart.update')}
               </button>
             </div>
           )}
@@ -86,7 +88,7 @@ const Cart = () => {
                     </div>
 
                     <button className="remove-btn" onClick={() => dispatch(removeToCart(item._id))}>
-                      Remove
+                      {t('cart.remove')}
                     </button>
                   </div>
                 );
@@ -94,38 +96,38 @@ const Cart = () => {
             </div>
 
             <div className="cart-summary-card">
-              <h2>Order Summary</h2>
+              <h2>{t('cart.summary')}</h2>
               <div className="summary-row">
-                <span>Subtotal</span>
+                <span>{t('cart.subtotal')}</span>
                 <strong>₹{subtotal.toFixed(2)}</strong>
               </div>
               <div className="summary-row">
-                <span>Delivery</span>
-                <strong>{deliveryFee > 0 ? `₹${deliveryFee.toFixed(2)}` : "Free"}</strong>
+                <span>{t('cart.delivery')}</span>
+                <strong>{deliveryFee > 0 ? `₹${deliveryFee.toFixed(2)}` : t('common.free')}</strong>
               </div>
               {config.freeDeliveryAbove > 0 && (
                 <p style={{ fontSize: '0.85rem', color: amountToFreeDelivery > 0 ? '#92400e' : '#047857', margin: '4px 0 8px' }}>
                   {amountToFreeDelivery > 0
-                    ? `Add ₹${amountToFreeDelivery.toFixed(0)} more for free delivery`
-                    : 'You get free delivery on this order'}
+                    ? t('cart.addMoreFree', { amount: amountToFreeDelivery.toFixed(0) })
+                    : t('cart.gotFree')}
                 </p>
               )}
               <div className="summary-row total-row">
-                <span>Total</span>
+                <span>{t('cart.total')}</span>
                 <strong>₹{total.toFixed(2)}</strong>
               </div>
 
               {hasIssues ? (
                 <>
                   <button className="view-details-button" disabled style={{ opacity: 0.5, cursor: 'not-allowed' }}>
-                    Proceed to Checkout
+                    {t('cart.checkout')}
                   </button>
                   <p style={{ fontSize: '0.85rem', color: '#92400e', marginTop: 8 }}>
-                    Please update your cart to continue.
+                    {t('cart.fixFirst')}
                   </p>
                 </>
               ) : (
-                <Link to="/checkout" className="view-details-button">Proceed to Checkout</Link>
+                <Link to="/checkout" className="view-details-button">{t('cart.checkout')}</Link>
               )}
             </div>
           </div>

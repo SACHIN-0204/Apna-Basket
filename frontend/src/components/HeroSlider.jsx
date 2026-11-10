@@ -1,45 +1,39 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
+import { useT } from "../i18n/LanguageContext";
 import "../styles/heroSlider.css";
 
 const SLIDES = [
     {
-        title: "Everything Your Home Needs",
-        subtitle: "Groceries, snacks and household essentials delivered to your door.",
+        id: "s1",
         image: "/apna-basket-banner.jpg",
         position: "88% center", // keeps the basket artwork visible on narrow screens
         link: "/shop",
-        cta: "Start Shopping",
     },
     {
-        title: "Fresh Dairy, Every Morning",
-        subtitle: "Milk, curd, paneer & more — delivered fresh to your doorstep.",
+        id: "s2",
         image:
             "https://images.unsplash.com/photo-1528750997573-59b89d56f4f7?auto=format&fit=crop&w=1200&q=70",
         link: "/shop",
-        cta: "Shop Dairy",
     },
     {
-        title: "Grocery Essentials, All in One Place",
-        subtitle: "From atta to spices — everything your kitchen needs.",
+        id: "s3",
         image:
             "https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&w=1200&q=70",
         link: "/shop",
-        cta: "Shop Groceries",
     },
     {
-        title: "Namkeen & Snacks You'll Love",
-        subtitle: "Crunchy, spicy, and always fresh — snack time sorted.",
+        id: "s4",
         image:
             "https://images.unsplash.com/photo-1633536706889-af4e8cd7f64b?auto=format&fit=crop&w=1200&q=70",
         link: "/shop",
-        cta: "Shop Snacks",
     },
 ];
 
 const AUTO_SLIDE_INTERVAL = 4000; // ms
 
 const HeroSlider = () => {
+    const { t } = useT();
     const [current, setCurrent] = useState(0);
     const [paused, setPaused] = useState(false);
 
@@ -67,24 +61,24 @@ const HeroSlider = () => {
         >
             {SLIDES.map((slide, index) => (
                 <div
-                    key={slide.title}
+                    key={slide.id}
                     className={`hero-slide ${index === current ? "active" : ""}`}
                     style={{ backgroundImage: `url(${slide.image})`, backgroundPosition: slide.position }}
                 >
                     <div className="hero-slide-overlay" />
                                         <div className="hero-slide-content">
-                        <h2>{slide.title}</h2>
-                        <p>{slide.subtitle}</p>
+                        <h2>{t(`hero.${slide.id}.title`)}</h2>
+                        <p>{t(`hero.${slide.id}.subtitle`)}</p>
                         {slide.disabled ? (
                             <button
                                 className="hero-slide-btn hero-slide-btn-disabled"
                                 disabled
                             >
-                                {slide.cta}
+                                {t(`hero.${slide.id}.cta`)}
                             </button>
                         ) : (
                             <Link to={slide.link} className="hero-slide-btn">
-                                {slide.cta}
+                                {t(`hero.${slide.id}.cta`)}
                             </Link>
                         )}
                     </div>
@@ -94,14 +88,14 @@ const HeroSlider = () => {
             <button
                 className="hero-slider-arrow hero-slider-arrow-left"
                 onClick={prev}
-                aria-label="Previous slide"
+                aria-label={t("hero.prev")}
             >
                 ‹
             </button>
             <button
                 className="hero-slider-arrow hero-slider-arrow-right"
                 onClick={next}
-                aria-label="Next slide"
+                aria-label={t("hero.next")}
             >
                 ›
             </button>
@@ -109,10 +103,10 @@ const HeroSlider = () => {
             <div className="hero-slider-dots">
                 {SLIDES.map((slide, index) => (
                     <button
-                        key={slide.title}
+                        key={slide.id}
                         className={`hero-slider-dot ${index === current ? "active" : ""}`}
                         onClick={() => goTo(index)}
-                        aria-label={`Go to slide ${index + 1}`}
+                        aria-label={t("hero.goTo", { n: index + 1 })}
                     />
                 ))}
             </div>

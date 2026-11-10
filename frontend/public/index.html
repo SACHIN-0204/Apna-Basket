@@ -18,6 +18,11 @@
     <meta property="og:image" content="%PUBLIC_URL%/logo-full.png" />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <!-- Home-screen app behaviour on iPhone / iPad (Safari ignores most of the manifest) -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Apna Basket" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <!-- Font Awesome: used by the footer social icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
 

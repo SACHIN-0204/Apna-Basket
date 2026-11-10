@@ -1,176 +1,165 @@
-const Razorpay = require("razorpay");
 const crypto = require("crypto");
 const mongoose = require("mongoose");
 const Order = require("../models/Order");
-const { sendOrderEmailById } = require("../utils/orderEmail");
-const { notifyOrderSms } = require("../utils/notify");
+const sendEmail = require("../utils/sendEmail");
+const { getRazorpay } = require("../utils/razorpay");
+const { refundOrder } = require("../utils/orderService");
 
-const getRazorpay = () => {
-    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-        throw new Error("Razorpay is not configured on the server");
-    }
-    return new Razorpay({
-        key_id: process.env.RAZORPAY_KEY_ID,
-        key_secret: process.env.RAZORPAY_KEY_SECRET,
-    });
+const sendPaymentSuccessEmail = async (order) => {
+  if (!order?.user?.email) return;
+
+  const subject = "Payment successful - Abhishek Kirana Store";
+  const html = `
+    <div style="font-family: Arial, sans-serif; background:#f7f9fc; padding:24px; color:#111827;">
+      <div style="max-width:640px; margin:0 auto; background:#ffffff; border:1px solid #e5e7eb; border-radius:12px; overflow:hidden;">
+        <div style="background:linear-gradient(135deg, #1f4f3d, #2e7d32); padding:24px 28px; color:#ffffff;">
+          <h2 style="margin:0; font-size:24px;">Abhishek Kirana Store</h2>
+          <p style="margin:6px 0 0; font-size:14px; opacity:0.95;">Payment confirmed</p>
+        </div>
+        <div style="padding:28px;">
+          <h3 style="margin:0 0 10px; font-size:22px; color:#111827;">Payment successful</h3>
+          <p style="margin:0 0 14px; font-size:15px; line-height:1.6; color:#374151;">Hello ${order.user.username || "Customer"}, we have received your payment successfully.</p>
+          <div style="background:#f8fafc; padding:14px 16px; border-radius:8px; margin-bottom:16px; font-size:14px; line-height:1.7; color:#111827;">
+            Order ID: <strong>${order._id}</strong><br />Amount Paid: <strong>₹${order.totalPrice}</strong>
+          </div>
+          <p style="margin:0; font-size:14px; color:#6b7280; line-height:1.6;">Your order is now moving ahead and we will keep you updated.</p>
+        </div>
+        <div style="background:#f9fafb; padding:16px 28px; font-size:12px; color:#6b7280; text-align:center; border-top:1px solid #e5e7eb;">
+          © 2026 Abhishek Kirana Store. All rights reserved.
+        </div>
+      </div>
+    </div>
+  `;
+
+  await sendEmail(order.user.email, subject, html);
 };
 
-const hmacHex = (secret, payload) => crypto.createHmac("sha256", secret).update(payload).digest("hex");
-
-// Constant-time comparison so a signature cannot be guessed from response timing
-const safeEqual = (a, b) => {
-    const A = Buffer.from(String(a ?? ""), "utf8");
-    const B = Buffer.from(String(b ?? ""), "utf8");
-    return A.length === B.length && crypto.timingSafeEqual(A, B);
-};
-
-// Records a confirmed payment. Used by both the browser verify call and the webhook,
-// so it must be safe to run twice for the same payment.
-// Returns "paid" (just now), "already_paid", or "refund_pending" (order had already been cancelled).
-const markOrderPaid = async (order, paymentId) => {
-    const paid = await Order.updateOne(
-        { _id: order._id, paymentStatus: "payment_pending", status: { $ne: "cancelled" } },
-        {
-            $set: { paymentStatus: "paid", razorpayPaymentId: paymentId, expiresAt: null },
-            $push: { statusHistory: { status: "pending", paymentStatus: "paid", by: "payment", note: "Payment received", at: new Date() } },
-        }
-    );
-    if (paid.modifiedCount === 1) {
-        sendOrderEmailById(order._id, "payment-success"); // not awaited; never throws
-        notifyOrderSms(order, "payment-success");
-        return "paid";
-    }
-
-    const fresh = await Order.findById(order._id).select("status paymentStatus");
-    if (fresh?.paymentStatus === "paid" || fresh?.paymentStatus === "refund_pending" || fresh?.paymentStatus === "refunded") {
-        return fresh.paymentStatus === "paid" ? "already_paid" : "refund_pending";
-    }
-
-    // The order expired or was cancelled before the money arrived: keep a record so it can be refunded
-    await Order.updateOne(
-        { _id: order._id, paymentStatus: { $in: ["failed", "payment_pending"] } },
-        { $set: { paymentStatus: "refund_pending", razorpayPaymentId: paymentId } }
-    );
-    return "refund_pending";
-};
 
 // @desc    Start an online payment for an order that already exists
 // @route   POST /api/payments/order        body: { orderId }
-// @access  Private
-// The amount is taken from the saved order. The browser never decides what to charge.
+// @access  Private (owner only)
+// The amount is taken from the saved order (which the server priced), never from the browser.
 const createOrder = async (req, res) => {
     try {
-        const { orderId } = req.body || {};
-        if (!mongoose.Types.ObjectId.isValid(String(orderId || ""))) {
-            return res.status(400).json({ message: "Invalid order" });
+        const { orderId } = req.body;
+        if (!mongoose.Types.ObjectId.isValid(orderId)) {
+            return res.status(400).json({ message: "Invalid order id" });
         }
 
         const order = await Order.findOne({ _id: orderId, user: req.user._id });
         if (!order) return res.status(404).json({ message: "Order not found" });
 
         if (order.paymentMethod !== "Razorpay") {
-            return res.status(400).json({ message: "This order is not an online-payment order" });
+            return res.status(400).json({ message: "This order is not an online payment order" });
         }
-        if (order.status === "cancelled" || order.paymentStatus !== "payment_pending") {
-            return res.status(409).json({ message: "This order can no longer be paid. Please place a new order." });
-        }
-        if (order.expiresAt && order.expiresAt < new Date()) {
-            return res.status(409).json({ message: "This order expired because payment was not completed. Please place a new order." });
+        if (order.status !== "pending" || order.paymentStatus !== "pending") {
+            return res.status(409).json({ message: "This order is not awaiting payment" });
         }
 
         const amount = Math.round(order.totalPrice * 100); // paise
-        let razorpayOrderId = order.razorpayOrderId;
-
-        // Reuse the same Razorpay order if the customer is retrying
-        if (!razorpayOrderId) {
-            const created = await getRazorpay().orders.create({
+        const respond = (rzpOrderId) =>
+            res.status(200).json({
+                id: rzpOrderId,
                 amount,
                 currency: "INR",
-                receipt: String(order._id),
-                notes: { orderId: String(order._id) },
+                key: process.env.RAZORPAY_KEY_ID,
+                orderId: order._id,
             });
-            razorpayOrderId = created.id;
-            await Order.updateOne({ _id: order._id }, { $set: { razorpayOrderId } });
-        }
 
-        res.status(200).json({
-            id: razorpayOrderId,
+        // Retrying the same order reuses its Razorpay order instead of creating another
+        if (order.razorpayOrderId) return respond(order.razorpayOrderId);
+
+        const rzpOrder = await getRazorpay().orders.create({
             amount,
             currency: "INR",
-            keyId: process.env.RAZORPAY_KEY_ID, // public key, safe to send
-            orderId: order._id,
+            receipt: String(order._id),
+            notes: { orderId: String(order._id) },
         });
+
+        // Link the two orders. If a parallel request linked one first, use that one.
+        const linked = await Order.findOneAndUpdate(
+            { _id: order._id, razorpayOrderId: null },
+            { $set: { razorpayOrderId: rzpOrder.id } },
+            { new: true }
+        );
+        return respond(linked ? linked.razorpayOrderId : (await Order.findById(order._id)).razorpayOrderId);
     } catch (error) {
         console.error("Razorpay order creation failed:", error?.error?.description || error.message);
-        res.status(500).json({ message: "Could not start the payment. Please try again." });
+        res.status(500).json({ message: "Unable to start payment" });
     }
 };
 
-// @desc    Confirm a payment after the customer pays in the Razorpay window
-// @route   POST /api/payments/verify
-// @access  Private
+// @desc    Verify the signature Razorpay returns after payment, then mark the order paid
+// @route   POST /api/payments/verify       body: { razorpay_order_id, razorpay_payment_id, razorpay_signature }
+// @access  Private (owner only)
 const verifyPayment = async (req, res) => {
     try {
-        const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body || {};
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
         if (![razorpay_order_id, razorpay_payment_id, razorpay_signature].every((v) => typeof v === "string" && v)) {
+            return res.status(400).json({ message: "Missing payment details" });
+        }
+
+        // Razorpay signs "<order_id>|<payment_id>" - exactly that, with no spaces around the pipe
+        const expected = crypto
+            .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+            .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+            .digest("hex");
+
+        const a = Buffer.from(expected);
+        const b = Buffer.from(razorpay_signature);
+        if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
             return res.status(400).json({ message: "Payment verification failed" });
         }
 
-        // Razorpay signs "order_id|payment_id" (no spaces)
-        const expected = hmacHex(process.env.RAZORPAY_KEY_SECRET || "", `${razorpay_order_id}|${razorpay_payment_id}`);
-        if (!safeEqual(expected, razorpay_signature)) {
-            return res.status(400).json({ message: "Payment verification failed" });
-        }
-
-        // Only the customer who owns this order can confirm it
+        // Find OUR order through the Razorpay order id, and only if it belongs to this user.
         const order = await Order.findOne({ razorpayOrderId: razorpay_order_id, user: req.user._id });
-        if (!order) return res.status(404).json({ message: "Order not found for this payment" });
+        if (!order) return res.status(404).json({ message: "No order found for this payment" });
 
-        const outcome = await markOrderPaid(order, razorpay_payment_id);
-        if (outcome === "refund_pending") {
-            return res.status(409).json({
-                message: "Your payment arrived after the order had expired. It will be refunded. Please contact the store if you need help.",
-            });
+        // Same payment submitted twice (double click, retry): succeed without doing it again
+        if (order.paymentStatus === "paid" && order.razorpayPaymentId === razorpay_payment_id) {
+            return res.status(200).json({ message: "Payment verified successfully!", order });
         }
 
-        res.status(200).json({ message: "Payment verified successfully!", orderId: order._id });
-    } catch (error) {
-        console.error("Payment verification error:", error.message);
-        res.status(500).json({ message: "Server error while verifying the payment" });
-    }
-};
+        const paid = await Order.findOneAndUpdate(
+            { _id: order._id, paymentStatus: "pending", status: { $ne: "cancelled" } },
+            { $set: { paymentStatus: "paid", razorpayPaymentId: razorpay_payment_id, paidAt: new Date() } },
+            { new: true }
+        );
 
-// @desc    Razorpay calls this by itself, so a paid order is never lost if the customer closes the tab
-// @route   POST /api/payments/webhook
-// @access  Public, protected by Razorpay's signature
-const razorpayWebhook = async (req, res) => {
-    try {
-        const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
-        if (!secret) {
-            console.error("RAZORPAY_WEBHOOK_SECRET is not set; webhook ignored");
-            return res.status(503).json({ message: "Webhook not configured" });
-        }
+        if (!paid) {
+            const current = await Order.findById(order._id);
 
-        const signature = req.get("x-razorpay-signature");
-        if (!req.rawBody || !signature || !safeEqual(hmacHex(secret, req.rawBody), signature)) {
-            return res.status(400).json({ message: "Invalid signature" });
-        }
-
-        const { event, payload } = req.body || {};
-        if (event === "payment.captured" || event === "order.paid") {
-            const payment = payload?.payment?.entity;
-            if (payment?.order_id && payment?.id) {
-                const order = await Order.findOne({ razorpayOrderId: payment.order_id });
-                if (order) await markOrderPaid(order, payment.id);
+            // The order was cancelled (by the customer, an admin, or the expiry job) while the
+            // customer was paying. The money is real, so give it back.
+            if (current.status === "cancelled" && ["pending", "failed"].includes(current.paymentStatus)) {
+                const claimed = await Order.findOneAndUpdate(
+                    { _id: current._id, paymentStatus: { $in: ["pending", "failed"] } },
+                    { $set: { paymentStatus: "paid", razorpayPaymentId: razorpay_payment_id, paidAt: new Date() } },
+                    { new: true }
+                );
+                if (claimed) await refundOrder(claimed);
+                return res.status(409).json({
+                    message: "This order was cancelled before your payment completed. Your payment will be refunded.",
+                });
             }
+            return res.status(409).json({ message: "This order has already been paid" });
         }
 
-        // Always answer 200 for a valid signature so Razorpay does not keep retrying
-        res.status(200).json({ ok: true });
+        try {
+            const populated = await Order.findById(paid._id).populate("user", "username email");
+            await sendPaymentSuccessEmail(populated);
+        } catch (emailError) {
+            console.error("Payment success email failed:", emailError);
+        }
+
+        res.status(200).json({ message: "Payment verified successfully!", order: paid });
     } catch (error) {
-        console.error("Razorpay webhook error:", error.message);
-        res.status(500).json({ message: "Webhook error" });
+        console.error("Payment verification error:", error);
+        res.status(500).json({ message: "Server error" });
     }
 };
 
-module.exports = { createOrder, verifyPayment, razorpayWebhook, hmacHex, safeEqual };
+module.exports = {
+    createOrder,
+    verifyPayment
+};

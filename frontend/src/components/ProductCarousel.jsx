@@ -1,8 +1,10 @@
 import React, { useRef } from "react";
 import ProductCard from "./ProductCard";
+import { useT } from "../i18n/LanguageContext";
 import "../styles/carousel.css";
 
 const ProductCarousel = ({ products }) => {
+    const { t } = useT();
     const trackRef = useRef(null);
 
     const scrollByAmount = (direction) => {
@@ -17,7 +19,7 @@ const ProductCarousel = ({ products }) => {
             <button
                 className="carousel-arrow carousel-arrow-left"
                 onClick={() => scrollByAmount(-1)}
-                aria-label="Scroll left"
+                aria-label={t("carousel.left")}
             >
                 ‹
             </button>
@@ -33,7 +35,7 @@ const ProductCarousel = ({ products }) => {
             <button
                 className="carousel-arrow carousel-arrow-right"
                 onClick={() => scrollByAmount(1)}
-                aria-label="Scroll right"
+                aria-label={t("carousel.right")}
             >
                 ›
             </button>

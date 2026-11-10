@@ -2,23 +2,20 @@ import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
 import { useShopProducts, useCategories } from '../hooks/useShopProducts';
+import { useT } from '../i18n/LanguageContext';
 
-const SORTS = {
-  newest: 'Newest first',
-  priceLow: 'Price: low to high',
-  priceHigh: 'Price: high to low',
-  name: 'Name: A to Z',
-};
+const SORT_KEYS = ['newest', 'priceLow', 'priceHigh', 'name'];
 
 const SEARCH_DELAY_MS = 300;
 
 const Shop = () => {
+  const { t, tm, tc } = useT();
   const [params, setParams] = useSearchParams();
 
   const urlSearch = params.get('search') || '';
   const category = params.get('category') || '';
   const rawSort = params.get('sort') || 'newest';
-  const sort = SORTS[rawSort] ? rawSort : 'newest';
+  const sort = SORT_KEYS.includes(rawSort) ? rawSort : 'newest';
 
   // The box updates instantly; the URL (and the server request) follows once typing pauses
   const [searchInput, setSearchInput] = useState(urlSearch);
@@ -59,58 +56,58 @@ const Shop = () => {
   return (
     <div style={pageStyle}>
       <div style={{ marginBottom: 20 }}>
-        <h1 style={{ margin: 0, color: '#111827' }}>Shop</h1>
+        <h1 style={{ margin: 0, color: '#111827' }}>{t('shop.title')}</h1>
         <p style={{ margin: '6px 0 0', color: '#6b7280' }}>
-          Fresh groceries and daily essentials, delivered from our store.
+          {t('shop.subtitle')}
         </p>
       </div>
 
       <div style={toolbarStyle}>
         <input
           type="search"
-          placeholder="Search products, brands..."
+          placeholder={t('shop.searchPlaceholder')}
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
           style={searchStyle}
-          aria-label="Search products"
+          aria-label={t('shop.searchAria')}
         />
-        <select value={sort} onChange={(e) => updateParam('sort', e.target.value === 'newest' ? '' : e.target.value)} style={selectStyle} aria-label="Sort products">
-          {Object.entries(SORTS).map(([key, label]) => (
-            <option key={key} value={key}>{label}</option>
+        <select value={sort} onChange={(e) => updateParam('sort', e.target.value === 'newest' ? '' : e.target.value)} style={selectStyle} aria-label={t('shop.sortAria')}>
+          {SORT_KEYS.map((key) => (
+            <option key={key} value={key}>{t(`shop.sort.${key}`)}</option>
           ))}
         </select>
       </div>
 
       <div style={chipRowStyle}>
-        <button onClick={() => updateParam('category', '')} style={chipStyle(!category)}>All</button>
+        <button onClick={() => updateParam('category', '')} style={chipStyle(!category)}>{t('shop.all')}</button>
         {categories.map((c) => (
           <button key={c} onClick={() => updateParam('category', c)} style={chipStyle(category === c)}>
-            {c}
+            {tc(c)}
           </button>
         ))}
       </div>
 
-      {loading && <p style={mutedStyle}>Loading products...</p>}
+      {loading && <p style={mutedStyle}>{t('shop.loading')}</p>}
 
       {error && !loading && items.length === 0 && (
         <div style={messageBoxStyle}>
-          <p style={{ margin: '0 0 12px' }}>Could not load products. Please try again.</p>
-          <button onClick={retry} style={retryBtnStyle}>Retry</button>
+          <p style={{ margin: '0 0 12px' }}>{t('shop.loadError')}</p>
+          <button onClick={retry} style={retryBtnStyle}>{t('common.retry')}</button>
         </div>
       )}
 
       {!loading && !(error && items.length === 0) && (
         <>
           <p style={{ ...mutedStyle, marginBottom: 14 }} aria-live="polite">
-            {total} {total === 1 ? 'product' : 'products'}
-            {category && ` in ${category}`}
-            {urlSearch && ` matching "${urlSearch}"`}
+            {t('shop.count', { count: total })}
+            {category && t('shop.inCategory', { category: tc(category) })}
+            {urlSearch && t('shop.matching', { search: urlSearch })}
           </p>
 
           {items.length === 0 ? (
             <div style={messageBoxStyle}>
-              <p style={{ margin: '0 0 12px' }}>No products found.</p>
-              <button onClick={clearFilters} style={retryBtnStyle}>Clear filters</button>
+              <p style={{ margin: '0 0 12px' }}>{t('shop.none')}</p>
+              <button onClick={clearFilters} style={retryBtnStyle}>{t('shop.clear')}</button>
             </div>
           ) : (
             <>
@@ -120,12 +117,12 @@ const Shop = () => {
                 ))}
               </div>
 
-              {error && <p style={{ ...mutedStyle, textAlign: 'center', marginTop: 16, color: '#b91c1c' }}>{error}</p>}
+              {error && <p style={{ ...mutedStyle, textAlign: 'center', marginTop: 16, color: '#b91c1c' }}>{tm(error)}</p>}
 
               {hasMore && (
                 <div style={{ textAlign: 'center', marginTop: 28 }}>
                   <button onClick={loadMore} disabled={loadingMore} style={{ ...retryBtnStyle, minHeight: 44, padding: '10px 28px' }}>
-                    {loadingMore ? 'Loading...' : `Show more (${total - items.length} left)`}
+                    {loadingMore ? t('common.loading') : t('shop.showMore', { count: total - items.length })}
                   </button>
                 </div>
               )}

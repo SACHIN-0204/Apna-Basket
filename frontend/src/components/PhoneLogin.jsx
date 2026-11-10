@@ -1,11 +1,13 @@
 import React, { useContext, useEffect, useState } from "react";
 import { AuthContext } from "../context/AuthContext";
+import { useT } from "../i18n/LanguageContext";
 import "../styles/product.css";
 
 // Mobile number + SMS code. Signs the customer in, or creates their account on first use:
 // no password and no registration form.
-const PhoneLogin = ({ onSuccess, heading = "Sign in with your mobile number", hint }) => {
+const PhoneLogin = ({ onSuccess, heading, hint }) => {
   const { login } = useContext(AuthContext);
+  const { t, tm } = useT();
   const [step, setStep] = useState("phone"); // "phone" | "otp"
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
@@ -39,7 +41,7 @@ const PhoneLogin = ({ onSuccess, heading = "Sign in with your mobile number", hi
       setStep("otp");
       setOtp("");
       setWaitSeconds(data.resendAfterSeconds || 30);
-      setMessage({ type: "success", text: `We sent a 6-digit code to ${phone}.` });
+      setMessage({ type: "success", text: t("phone.codeSent", { phone }) });
     } catch (err) {
       setMessage({ type: "error", text: err.message });
     } finally {
@@ -70,35 +72,35 @@ const PhoneLogin = ({ onSuccess, heading = "Sign in with your mobile number", hi
 
   return (
     <div>
-      <h2>{heading}</h2>
+      <h2>{heading || t("phone.heading")}</h2>
       {hint && <p>{hint}</p>}
 
       {step === "phone" ? (
         <form onSubmit={sendCode}>
           <div className="form-group">
-            <label htmlFor="login-phone">Mobile number</label>
+            <label htmlFor="login-phone">{t("phone.number")}</label>
             <input
               id="login-phone"
               type="tel"
               inputMode="numeric"
               autoComplete="tel-national"
-              placeholder="10-digit mobile number"
+              placeholder={t("phone.numberPlaceholder")}
               pattern="(\+?91|0)?[6-9][0-9]{9}"
-              title="Enter a valid 10-digit Indian mobile number"
+              title={t("phone.numberTitle")}
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               required
             />
           </div>
-          {message.text && <div className={`auth-message ${message.type}`}>{message.text}</div>}
+          {message.text && <div className={`auth-message ${message.type}`}>{tm(message.text)}</div>}
           <button className="view-details-button" type="submit" disabled={busy}>
-            {busy ? "Sending..." : "Send code"}
+            {busy ? t("phone.sending") : t("phone.sendCode")}
           </button>
         </form>
       ) : (
         <form onSubmit={verify}>
           <div className="form-group">
-            <label htmlFor="login-otp">6-digit code sent to {phone}</label>
+            <label htmlFor="login-otp">{t("phone.codeLabel", { phone })}</label>
             <input
               id="login-otp"
               type="text"
@@ -106,26 +108,26 @@ const PhoneLogin = ({ onSuccess, heading = "Sign in with your mobile number", hi
               autoComplete="one-time-code"
               maxLength={6}
               pattern="[0-9]{6}"
-              placeholder="Enter code"
+              placeholder={t("phone.codePlaceholder")}
               value={otp}
               onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
               required
               autoFocus
             />
           </div>
-          {message.text && <div className={`auth-message ${message.type}`}>{message.text}</div>}
+          {message.text && <div className={`auth-message ${message.type}`}>{tm(message.text)}</div>}
           <button className="view-details-button" type="submit" disabled={busy || otp.length !== 6}>
-            {busy ? "Checking..." : "Verify and continue"}
+            {busy ? t("phone.checking") : t("phone.verify")}
           </button>
           <p style={{ marginTop: 12 }}>
             <button type="button" className="back-link" style={{ background: "none", border: 0, cursor: "pointer", padding: 0 }}
               onClick={() => { setStep("phone"); setMessage({ type: "", text: "" }); }}>
-              Change number
+              {t("phone.change")}
             </button>
             {" · "}
             <button type="button" className="back-link" style={{ background: "none", border: 0, cursor: waitSeconds > 0 ? "default" : "pointer", padding: 0 }}
               onClick={sendCode} disabled={busy || waitSeconds > 0}>
-              {waitSeconds > 0 ? `Resend code in ${waitSeconds}s` : "Resend code"}
+              {waitSeconds > 0 ? t("phone.resendIn", { seconds: waitSeconds }) : t("phone.resend")}
             </button>
           </p>
         </form>

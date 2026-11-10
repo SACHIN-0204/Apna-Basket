@@ -3,9 +3,11 @@ import { useSelector } from "react-redux";
 import { Link } from "react-router-dom";
 import ProductCarousel from "../components/ProductCarousel";
 import HeroSlider from "../components/HeroSlider";
+import { useT } from "../i18n/LanguageContext";
 import "../styles/home.css";
 
 const Home = () => {
+    const { t } = useT();
     const productsState = useSelector((state) => state.products);
     const products = Array.isArray(productsState)
         ? productsState
@@ -35,50 +37,47 @@ const Home = () => {
             <HeroSlider />
 
             <div className="hero-banner">
-                <h1>Welcome to Apna Basket</h1>
-                <p>Groceries • Daily Essentials • Household Needs</p>
+                <h1>{t("home.welcome")}</h1>
+                <p>{t("nav.tagline")}</p>
                 <div className="hero-badges">
-                    <span>✔ Quality Products</span>
-                    <span>✔ Best Value</span>
-                    <span>✔ Easy Shopping</span>
+                    <span>{t("home.badge1")}</span>
+                    <span>{t("home.badge2")}</span>
+                    <span>{t("home.badge3")}</span>
                 </div>
-                <Link to="/shop" className="btn hero-banner-btn">Start Shopping</Link>
+                <Link to="/shop" className="btn hero-banner-btn">{t("common.startShopping")}</Link>
             </div>
 
             {fetchError && <div role="alert">{fetchError}</div>}
 
             <div className="content-section">
-                <h2>Ready To Cook</h2>
+                <h2>{t("home.readyToCook")}</h2>
                 {loading ? (
-                    <div>Loading...</div>
+                    <div>{t("common.loading")}</div>
                 ) : readyToCook.length > 0 ? (
                     <ProductCarousel products={readyToCook} />
                 ) : (
-                    <div>No ready-to-cook products yet.</div>
+                    <div>{t("home.noReadyToCook")}</div>
                 )}
             </div>
 
             <div className="content-section">
-                <h2>Namkeen & Wafers</h2>
+                <h2>{t("home.namkeen")}</h2>
                 {loading ? (
-                    <div>Loading...</div>
+                    <div>{t("common.loading")}</div>
                 ) : namkeenAndWafers.length > 0 ? (
                     <ProductCarousel products={namkeenAndWafers} />
                 ) : (
-                    <div>No namkeen or wafers products yet.</div>
+                    <div>{t("home.noNamkeen")}</div>
                 )}
             </div>
 
             {/* Cleaning / Household essentials promo banner */}
             <div className="cleaning-banner">
                 <div className="cleaning-banner-text">
-                    <h2>Home Cleaning Essentials</h2>
-                    <p>
-                        Dishwash liquids, Harpic toilet cleaners, handwash & more —
-                        everything to keep your home spotless.
-                    </p>
+                    <h2>{t("home.cleaningTitle")}</h2>
+                    <p>{t("home.cleaningText")}</p>
                     <Link to="/shop?category=Household" className="btn cleaning-banner-btn">
-                        Shop Cleaning Essentials
+                        {t("home.cleaningCta")}
                     </Link>
                 </div>
                 <div className="cleaning-banner-icons">
@@ -89,20 +88,20 @@ const Home = () => {
             </div>
 
             <div className="content-section">
-                <h2>Household & Cleaning Products</h2>
+                <h2>{t("home.household")}</h2>
                 {loading ? (
-                    <div>Loading...</div>
+                    <div>{t("common.loading")}</div>
                 ) : cleaningEssentials.length > 0 ? (
                     <ProductCarousel products={cleaningEssentials} />
                 ) : (
-                    <div>No cleaning products yet.</div>
+                    <div>{t("home.noCleaning")}</div>
                 )}
             </div>
 
             <div className="content-section">
-                <h2>Grocery</h2>
+                <h2>{t("home.grocery")}</h2>
                 {loading ? (
-                    <div>Loading...</div>
+                    <div>{t("common.loading")}</div>
                 ) : (
                     <ProductCarousel products={groceries} />
                 )}

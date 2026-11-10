@@ -6,6 +6,7 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
 import StickyCartBar from './components/StickyCartBar';
+import InstallPrompt from './components/InstallPrompt';
 import AddProducts from './admin/AddProducts';
 import ManageProducts from './admin/ManageProducts';
 import EditProduct from './admin/EditProduct';
@@ -51,6 +52,7 @@ function App() {
      <ScrollToTop />
      <Navbar />
      <div className="main-content">
+        <InstallPrompt />
         <Suspense fallback={<PageLoading />}>
 <Routes>
           <Route path="/" element={<Home />} />

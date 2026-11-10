@@ -2,6 +2,7 @@ import React, { useState, useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import PhoneLogin from "../components/PhoneLogin";
+import { useT } from "../i18n/LanguageContext";
 import "../styles/register.css";
 
 const Login = () => {
@@ -10,6 +11,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
   const { login } = useContext(AuthContext);
+  const { t, tm } = useT();
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -35,7 +37,7 @@ const Login = () => {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.message || "Login failed");
+        throw new Error(data.message || t("login.failed"));
       }
 
       login({
@@ -47,7 +49,7 @@ const Login = () => {
         token: data.token,
       });
 
-      setMessage({ type: "success", text: "Login successful!" });
+      setMessage({ type: "success", text: t("login.success") });
       navigate("/");
     } catch (error) {
       setMessage({ type: "error", text: error.message });
@@ -60,36 +62,36 @@ const Login = () => {
     <div className="auth-page">
       <div className="auth-card">
         <div className="auth-hero">
-          <h1>Welcome back</h1>
-          <p>Sign in to continue shopping for your daily essentials at Apna Basket.</p>
+          <h1>{t("login.welcomeBack")}</h1>
+          <p>{t("login.welcomeText")}</p>
         </div>
 
         <div className="auth-form-wrap">
           {mode === "phone" ? (
             <div className="auth-form">
               <PhoneLogin
-                heading="Login with mobile"
-                hint="No password needed. New here? Your account is created automatically."
+                heading={t("login.mobileHeading")}
+                hint={t("login.mobileHint")}
                 onSuccess={() => navigate("/")}
               />
               <p className="auth-link">
                 <button type="button" className="back-link" style={{ background: "none", border: 0, cursor: "pointer" }} onClick={() => setMode("email")}>
-                  Use email and password instead
+                  {t("login.useEmail")}
                 </button>
               </p>
             </div>
           ) : (
           <form className="auth-form" onSubmit={handleSubmit}>
-            <h2>Login</h2>
-            <p>Enter your credentials to access your account.</p>
+            <h2>{t("login.title")}</h2>
+            <p>{t("login.credentials")}</p>
 
             <div className="form-group">
-              <label htmlFor="email">Email address</label>
+              <label htmlFor="email">{t("login.email")}</label>
               <input
                 id="email"
                 name="email"
                 type="email"
-                placeholder="Enter your email"
+                placeholder={t("login.emailPlaceholder")}
                 value={formData.email}
                 onChange={handleChange}
                 required
@@ -97,12 +99,12 @@ const Login = () => {
             </div>
 
             <div className="form-group">
-              <label htmlFor="password">Password</label>
+              <label htmlFor="password">{t("login.password")}</label>
               <input
                 id="password"
                 name="password"
                 type="password"
-                placeholder="Enter your password"
+                placeholder={t("login.passwordPlaceholder")}
                 value={formData.password}
                 onChange={handleChange}
                 required
@@ -110,19 +112,19 @@ const Login = () => {
             </div>
 
             {message.text && (
-              <div className={`auth-message ${message.type}`}>{message.text}</div>
+              <div className={`auth-message ${message.type}`}>{tm(message.text)}</div>
             )}
 
             <button className="auth-btn" type="submit" disabled={loading}>
-              {loading ? "Signing in..." : "Sign in"}
+              {loading ? t("login.signingIn") : t("login.signIn")}
             </button>
 
             <p className="auth-link">
-              Don&apos;t have an account? <Link to="/register">Create one</Link>
+              {t("login.noAccount")} <Link to="/register">{t("login.create")}</Link>
             </p>
             <p className="auth-link">
               <button type="button" className="back-link" style={{ background: "none", border: 0, cursor: "pointer" }} onClick={() => setMode("phone")}>
-                Login with mobile number
+                {t("login.useMobile")}
               </button>
             </p>
           </form>

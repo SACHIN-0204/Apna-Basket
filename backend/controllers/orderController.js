@@ -1,24 +1,11 @@
 const mongoose = require("mongoose");
 const Order = require("../models/Order");
+const { ORDER_STATUSES } = require("../models/Order");
 const Product = require("../models/Product");
-const User = require("../models/User");
-const Counter = require("../models/Counter");
-const { MAX_ADDRESSES } = require("./meController");
-const { notifyOrderSms } = require("../utils/notify");
-const { slotsEnabled, resolveSlot, isServiceable } = require("../utils/deliverySlots");
-const settings = require("../config/settings");
-const { calculateTotals, isStudentEmail, normalizeEmail } = require("../utils/pricing");
-const { normalizePhone } = require("../utils/phone");
-const { sendOrderEmail, sendOrderEmailById } = require("../utils/orderEmail");
+const sendEmail = require("../utils/sendEmail");
+const { restoreStock, priceOrder, cancelOrder } = require("../utils/orderService");
 
-// Put reserved stock back (used on cancel, expiry or failure)
-const restoreStock = async (items) => {
-    await Promise.all(
-        items.map((item) =>
-            Product.updateOne({ _id: item.productId }, { $inc: { stock: item.quantity } })
-        )
-    );
-};
+const PAYMENT_METHODS = ["Cash on Delivery", "Razorpay"];
 
 const stockMessage = (unavailable) =>
     "Some items are not available in the quantity you chose: " +
@@ -26,188 +13,164 @@ const stockMessage = (unavailable) =>
         .map((u) => (u.available > 0 ? `${u.name} (only ${u.available} left)` : `${u.name} (unavailable)`))
         .join(", ");
 
-const cleanText = (v, max = 200) => String(v ?? "").trim().slice(0, max);
+const loadPopulated = (id) =>
+    Order.findById(id)
+        .populate("user", "username email")
+        .populate("orderItems.productId", "name");
 
-// Customers may cancel until the store starts packing
-const CUSTOMER_CANCELLABLE = ["pending", "confirmed"];
+const formatOrderItems = (order) => {
+    if (!order?.orderItems?.length) return "No items";
 
-const historyEntry = (fields) => ({ at: new Date(), by: "system", note: "", ...fields });
-
-// Cancels an order exactly once and returns its stock.
-// The filter includes the payment status we read, so if a payment lands at the same moment
-// the update does nothing (instead of marking a paid order "failed") and the caller can retry.
-// Returns the new paymentStatus, or null if nothing was changed.
-const cancelOrderAtomic = async (order, { by, note = "", allowedStatuses = null }) => {
-    const nextPayment =
-        order.paymentStatus === "paid" ? "refund_pending"
-        : order.paymentStatus === "payment_pending" ? "failed"
-        : order.paymentStatus;
-
-    const result = await Order.updateOne(
-        {
-            _id: order._id,
-            paymentStatus: order.paymentStatus,
-            status: allowedStatuses ? { $in: allowedStatuses } : { $ne: "cancelled" },
-        },
-        {
-            $set: { status: "cancelled", paymentStatus: nextPayment, expiresAt: null },
-            $push: { statusHistory: historyEntry({ status: "cancelled", paymentStatus: nextPayment, by, note }) },
-        }
-    );
-    if (result.modifiedCount === 0) return null;
-
-    const items = order.orderItems
-        .map((i) => ({ productId: i.productId?._id || i.productId, quantity: i.quantity }))
-        .filter((i) => i.productId); // skip products that were deleted
-    await restoreStock(items);
-    return nextPayment;
+    return order.orderItems
+        .map((item) => {
+            const productName = item.productId?.name || "Product";
+            return `<li style="padding:6px 0; border-bottom:1px solid #f0f0f0;">${productName} × ${item.quantity} <span style="float:right; color:#1f2937;">₹${item.price}</span></li>`;
+        })
+        .join("");
 };
 
-// Remembers a delivery address for next time (skips duplicates, respects the limit)
-const rememberAddress = async (userId, address, phone) => {
-    const user = await User.findById(userId);
-    if (!user || user.addresses.length >= MAX_ADDRESSES) return;
-    const same = user.addresses.some(
-        (a) => a.zipCode === address.zipCode && a.street.trim().toLowerCase() === address.street.trim().toLowerCase()
-    );
-    if (same) return;
-    user.addresses.push({ ...address, phone, label: "Home", isDefault: user.addresses.length === 0 });
-    await user.save();
+const buildOrderEmail = (order, eventType) => {
+    const customerName = order.user?.username || "Customer";
+    const orderId = order._id || "N/A";
+    const total = order.totalPrice || 0;
+    const paymentMethod = order.paymentMethod || "N/A";
+    const statusText = order.status || "pending";
+
+    let subject = "";
+    let heading = "";
+    let intro = "";
+    let highlight = "";
+
+    switch (eventType) {
+        case "order-confirmed":
+            subject = "Order confirmed - Abhishek Kirana Store";
+            heading = "Order confirmed";
+            intro = "Thank you for shopping with us. Your order has been received and is now being prepared.";
+            highlight = `Order ID: <strong>${orderId}</strong><br />Payment Method: <strong>${paymentMethod}</strong><br />Total Amount: <strong>₹${total}</strong>`;
+            break;
+        case "payment-success":
+            subject = "Payment successful - Abhishek Kirana Store";
+            heading = "Payment successful";
+            intro = "We have received your payment successfully and your order is now moving forward.";
+            highlight = `Order ID: <strong>${orderId}</strong><br />Amount Paid: <strong>₹${total}</strong>`;
+            break;
+        case "order-cancelled":
+            subject = "Order cancelled - Abhishek Kirana Store";
+            heading = "Order cancelled";
+            intro = "Your order has been cancelled as requested. We’re here if you need help.";
+            highlight = `Order ID: <strong>${orderId}</strong><br />Cancelled Amount: <strong>₹${total}</strong>`;
+            break;
+        default:
+            subject = `Order status updated - ${statusText}`;
+            heading = "Order status updated";
+            intro = `Your order status has been updated to <strong>${statusText}</strong>.`;
+            highlight = `Order ID: <strong>${orderId}</strong><br />Current Status: <strong>${statusText}</strong>`;
+    }
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; background:#f7f9fc; padding:24px; color:#111827;">
+        <div style="max-width:640px; margin:0 auto; background:#ffffff; border:1px solid #e5e7eb; border-radius:12px; overflow:hidden;">
+          <div style="background:linear-gradient(135deg, #1f4f3d, #2e7d32); padding:24px 28px; color:#ffffff;">
+            <h2 style="margin:0; font-size:24px;">Abhishek Kirana Store</h2>
+            <p style="margin:6px 0 0; font-size:14px; opacity:0.95;">Fresh essentials, delivered with care</p>
+          </div>
+          <div style="padding:28px;">
+            <h3 style="margin:0 0 10px; font-size:22px; color:#111827;">${heading}</h3>
+            <p style="margin:0 0 14px; font-size:15px; line-height:1.6; color:#374151;">${intro}</p>
+            <div style="background:#f8fafc; padding:14px 16px; border-radius:8px; margin-bottom:16px; font-size:14px; line-height:1.7; color:#111827;">
+              ${highlight}
+            </div>
+            <div style="margin-bottom:12px; font-weight:600; color:#111827;">Order Items</div>
+            <ul style="list-style:none; padding:0; margin:0 0 16px;">
+              ${formatOrderItems(order)}
+            </ul>
+            <p style="margin:0; font-size:14px; color:#6b7280; line-height:1.6;">Thank you for choosing Abhishek Kirana Store. We appreciate your trust and look forward to serving you again.</p>
+          </div>
+          <div style="background:#f9fafb; padding:16px 28px; font-size:12px; color:#6b7280; text-align:center; border-top:1px solid #e5e7eb;">
+            © 2026 Abhishek Kirana Store. All rights reserved.
+          </div>
+        </div>
+      </div>
+    `;
+
+    return { subject, html };
 };
 
-// ---------------------------------------------------------------------------
-// Shared pricing step: used by both the quote and the real order, so the customer
-// is always charged exactly what the quote showed.
-// ---------------------------------------------------------------------------
-const priceCart = async (orderItems) => {
-    if (!Array.isArray(orderItems) || orderItems.length === 0) {
-        return { error: { status: 400, message: "Your cart is empty" } };
-    }
+const sendOrderEmail = async (order, eventType) => {
+    if (!order?.user?.email) return;
 
-    // 1. Validate ids and quantities, merge duplicate products
-    const wanted = new Map();
-    for (const item of orderItems) {
-        const id = String(item.productId?._id || item.productId || "");
-        const quantity = Number(item.quantity);
-        if (!mongoose.Types.ObjectId.isValid(id) || !Number.isInteger(quantity) || quantity < 1) {
-            return { error: { status: 400, message: "Invalid order item" } };
-        }
-        wanted.set(id, (wanted.get(id) || 0) + quantity);
-    }
-
-    // 2. Load the real products (real prices and stock) from the database
-    const products = await Product.find({ _id: { $in: [...wanted.keys()] } });
-    const productMap = new Map(products.map((p) => [String(p._id), p]));
-
-    // 3. Check availability
-    const unavailable = [];
-    for (const [id, quantity] of wanted) {
-        const product = productMap.get(id);
-        if (!product || product.isActive === false) {
-            unavailable.push({ productId: id, name: product?.name || "A product", available: 0 });
-        } else if (product.stock < quantity) {
-            unavailable.push({ productId: id, name: product.name, available: product.stock });
-        }
-    }
-
-    // 4. Prices come from the database, never from the browser
-    const items = [...wanted]
-        .filter(([id]) => productMap.has(id))
-        .map(([id, quantity]) => ({ productId: id, quantity, price: productMap.get(id).price }));
-    const itemsTotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
-
-    return { wanted, productMap, items, itemsTotal, unavailable };
-};
-
-// @desc    Price a cart without creating anything (shown on the checkout page)
-// @route   POST /api/orders/quote
-// @access  Public
-const quoteOrder = async (req, res) => {
-    try {
-        const { orderItems, studentEmail } = req.body || {};
-        const priced = await priceCart(orderItems);
-        if (priced.error) return res.status(priced.error.status).json({ message: priced.error.message });
-
-        const studentEmailGiven = Boolean(cleanText(studentEmail));
-        const totals = calculateTotals(priced.itemsTotal, { studentEmail });
-
-        res.status(200).json({
-            ...totals,
-            studentEmailValid: studentEmailGiven ? isStudentEmail(studentEmail) : null,
-            unavailable: priced.unavailable,
-        });
-    } catch (error) {
-        res.status(500).json({ message: "Could not calculate your total" });
-    }
+    const { subject, html } = buildOrderEmail(order, eventType);
+    await sendEmail(order.user.email, subject, html);
 };
 
 // @desc    Create a new order
 // @route   POST /api/orders
 // @access  Private
+// The browser only says WHAT it wants (product ids + quantities), WHERE to send it and HOW to
+// pay. Prices, delivery fee, discount and total are all calculated here from the database.
+// Online (Razorpay) orders are created as unpaid; the customer then pays via /api/payments.
 const createOrder = async (req, res) => {
     const reserved = [];
     let orderSaved = false;
 
     try {
-        const { orderItems, address, paymentMethod, contactPhone, studentEmail, saveAddress, deliverySlot } = req.body || {};
+        const { orderItems, address, paymentMethod = "Cash on Delivery", studentBypass, studentEmail } = req.body;
 
-        // Delivery details
-        if (!address || typeof address !== "object") {
-            return res.status(400).json({ message: "Delivery address is required" });
+        if (!PAYMENT_METHODS.includes(paymentMethod)) {
+            return res.status(400).json({ message: "Invalid payment method" });
         }
-        const cleanAddress = {
-            fullName: cleanText(address.fullName, 100),
-            street: cleanText(address.street, 250),
-            city: cleanText(address.city, 100),
-            state: cleanText(address.state, 100),
-            zipCode: cleanText(address.zipCode, 10),
-        };
-        if (Object.values(cleanAddress).some((v) => !v)) {
-            return res.status(400).json({ message: "Please fill in all delivery address fields" });
-        }
-        if (!/^\d{6}$/.test(cleanAddress.zipCode)) {
-            return res.status(400).json({ message: "Please enter a valid 6-digit PIN code" });
-        }
-        if (!isServiceable(cleanAddress.zipCode)) {
-            return res.status(400).json({ message: `Sorry, we do not deliver to PIN code ${cleanAddress.zipCode} yet. Please call the store.` });
+        if (!Array.isArray(orderItems) || orderItems.length === 0 || !address || typeof address !== "object") {
+            return res.status(400).json({ message: "Invalid order data" });
         }
 
-        // Delivery window: required whenever slots are switched on, and must still be bookable now
-        let slot;
-        if (slotsEnabled()) {
-            slot = resolveSlot(String(deliverySlot || ""));
-            if (!slot) {
-                return res.status(400).json({ message: "Please choose a delivery time. The one you picked may have just closed." });
+        // Only accept the address fields we know about, as plain non-empty strings
+        const cleanAddress = {};
+        for (const field of ["fullName", "street", "city", "state", "zipCode"]) {
+            const value = String(address[field] ?? "").trim();
+            if (!value) return res.status(400).json({ message: `Address ${field} is required` });
+            cleanAddress[field] = value;
+        }
+
+        // 1. Clean the request: validate ids and quantities, merge duplicate products
+        const wanted = new Map();
+        for (const item of orderItems) {
+            const id = String(item.productId?._id || item.productId || "");
+            const quantity = Number(item.quantity);
+            if (!mongoose.Types.ObjectId.isValid(id) || !Number.isInteger(quantity) || quantity < 1) {
+                return res.status(400).json({ message: "Invalid order item" });
+            }
+            wanted.set(id, (wanted.get(id) || 0) + quantity);
+        }
+
+        // 2. Load the real products (real prices and stock) from the database
+        const products = await Product.find({ _id: { $in: [...wanted.keys()] } });
+        const productMap = new Map(products.map((p) => [String(p._id), p]));
+
+        // 3. Check availability
+        const unavailable = [];
+        for (const [id, quantity] of wanted) {
+            const product = productMap.get(id);
+            if (!product || product.isActive === false) {
+                unavailable.push({ productId: id, name: product?.name || "A product", available: 0 });
+            } else if (product.stock < quantity) {
+                unavailable.push({ productId: id, name: product.name, available: product.stock });
             }
         }
-
-        const phone = normalizePhone(contactPhone ?? address.phone);
-        if (!phone) {
-            return res.status(400).json({ message: "Please enter a valid 10-digit mobile number so we can reach you for delivery" });
+        if (unavailable.length) {
+            return res.status(409).json({ message: stockMessage(unavailable), unavailable });
         }
 
-        const method = paymentMethod || "Cash on Delivery";
-        if (!settings.PAYMENT_METHODS.includes(method)) {
-            return res.status(400).json({ message: "Unsupported payment method" });
-        }
+        // 4. Price the order from DATABASE prices (throws a 400 for a bad student email)
+        const items = [...wanted].map(([id, quantity]) => ({
+            productId: id,
+            quantity,
+            price: productMap.get(id).price,
+        }));
+        const pricing = priceOrder(items, { studentBypass: studentBypass === true, studentEmail });
 
-        const studentEmailGiven = Boolean(cleanText(studentEmail));
-        if (studentEmailGiven && !isStudentEmail(studentEmail)) {
-            return res.status(400).json({
-                message: "The student discount needs a college email (for example name@college.ac.in or name@college.edu).",
-            });
-        }
-
-        // Price and check stock
-        const priced = await priceCart(orderItems);
-        if (priced.error) return res.status(priced.error.status).json({ message: priced.error.message });
-        if (priced.unavailable.length) {
-            return res.status(409).json({ message: stockMessage(priced.unavailable), unavailable: priced.unavailable });
-        }
-
-        // Reserve stock atomically. The condition stock >= quantity means two customers
-        // can never both buy the last item.
-        for (const [id, quantity] of priced.wanted) {
+        // 5. Reserve stock atomically. The condition stock >= quantity means two customers
+        //    can never both buy the last item.
+        for (const [id, quantity] of wanted) {
             const updated = await Product.findOneAndUpdate(
                 { _id: id, isActive: { $ne: false }, stock: { $gte: quantity } },
                 { $inc: { stock: -quantity } },
@@ -223,49 +186,29 @@ const createOrder = async (req, res) => {
             reserved.push({ productId: id, quantity });
         }
 
-        // Totals: one calculation, on the server
-        const totals = calculateTotals(priced.itemsTotal, { studentEmail });
-        const online = method === "Razorpay";
-
-        const orderNumber = `AB-${await Counter.next("order")}`;
-
         const order = await Order.create({
-            orderNumber,
             user: req.user._id,
-            orderItems: priced.items,
-            itemsTotal: totals.itemsTotal,
-            deliveryFee: totals.deliveryFee,
-            discount: totals.discount,
-            totalPrice: totals.totalPrice,
-            studentEmail: totals.studentDiscountApplied ? normalizeEmail(studentEmail) : "",
+            orderItems: items,
+            itemsTotal: pricing.itemsTotal,
+            deliveryFee: pricing.deliveryFee,
+            discount: pricing.discount,
+            studentEmail: pricing.studentEmail,
+            totalPrice: pricing.totalPrice,
             address: cleanAddress,
-            deliverySlot: slot,
-            contactPhone: phone,
-            paymentMethod: method,
-            paymentStatus: online ? "payment_pending" : "cod_pending",
-            expiresAt: online ? new Date(Date.now() + settings.PAYMENT_HOLD_MINUTES * 60 * 1000) : null,
-            statusHistory: [
-                historyEntry({
-                    status: "pending",
-                    paymentStatus: online ? "payment_pending" : "cod_pending",
-                    by: "customer",
-                    note: online ? "Order placed, waiting for payment" : "Order placed",
-                }),
-            ],
+            paymentMethod,
+            paymentStatus: "pending",
+            status: "pending",
         });
         orderSaved = true;
 
-        // Nice-to-haves after the order is safely saved. None of these can fail the checkout.
-        if (saveAddress !== false) rememberAddress(req.user._id, cleanAddress, phone).catch(() => {});
-        if (!req.user.username || req.user.username === "Customer") {
-            User.updateOne({ _id: req.user._id }, { $set: { username: cleanAddress.fullName } }).catch(() => {});
-        }
-
-        // Cash on Delivery is confirmed now. Online orders are confirmed when the payment succeeds.
-        // Not awaited: a slow mail server must never hold up the customer's checkout.
-        if (!online) {
-            sendOrderEmailById(order._id, "order-confirmed");
-            notifyOrderSms(order, "order-confirmed");
+        // 6. Cash on delivery is confirmed immediately. Online orders are confirmed once the
+        //    payment is verified (see paymentController). Email failures never fail the order.
+        if (paymentMethod === "Cash on Delivery") {
+            try {
+                await sendOrderEmail(await loadPopulated(order._id), "order-confirmed");
+            } catch (emailError) {
+                console.error("Order confirmation email failed:", emailError);
+            }
         }
 
         res.status(201).json({ message: "Order created successfully", order });
@@ -273,216 +216,146 @@ const createOrder = async (req, res) => {
         if (!orderSaved && reserved.length) {
             await restoreStock(reserved).catch((e) => console.error("Stock rollback failed:", e));
         }
-        res.status(500).json({ message: error.message });
+        res.status(error.status || 500).json({ message: error.message });
     }
 };
 
 const myOrders = async (req, res) => {
     try {
-        const orders = await Order.find({ user: req.user._id })
-            .sort({ createdAt: -1 })
-            .populate("orderItems.productId", "name price");
-        res.status(200).json({ orders });
+       const orders = await Order.find({ user: req.user._id })
+           .sort({ timestamp: -1 })
+           .populate(`orderItems.productId`, `name price`);
+       res.status(200).json({ orders });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
 
-const getOrders = async (req, res) => {
+const getOrders = async (req, res) =>{
+     try {
+        const orders = await Order.find().sort({ timestamp: -1 }).populate(`user`, `username email`);
+        res.status(200).json({ orders });
+     } catch (error) {
+        res.status(500).json({ message: error.message });
+     }
+};
+
+// @desc    Customer cancels their own order
+// @route   PUT /api/orders/:id/cancel
+// @access  Private (owner only)
+// Allowed only while the order is still "pending" (not yet shipped). Stock goes back on the
+// shelf, and an already-paid online order is refunded.
+const cancelMyOrder = async (req, res) => {
     try {
-        const orders = await Order.find()
-            .sort({ createdAt: -1 })
-            .populate("user", "username email")
-            .populate("orderItems.productId", "name");
-        res.status(200).json({ orders });
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ message: "Invalid order id" });
+        }
+
+        const owned = await Order.exists({ _id: req.params.id, user: req.user._id });
+        if (!owned) return res.status(404).json({ message: "Order not found" });
+
+        const order = await cancelOrder(
+            { _id: req.params.id, user: req.user._id },
+            { allowedFrom: ["pending"], reason: "Cancelled by customer" }
+        );
+        if (!order) {
+            return res.status(409).json({ message: "This order can no longer be cancelled" });
+        }
+
+        try {
+            await sendOrderEmail(await loadPopulated(order._id), "order-cancelled");
+        } catch (emailError) {
+            console.error("Order cancellation email failed:", emailError);
+        }
+
+        const message =
+            order.paymentStatus === "refunded" || order.paymentStatus === "refund_pending"
+                ? "Order cancelled. Your payment will be refunded to the original payment method."
+                : "Order cancelled.";
+        res.json({ message, order });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: error.message || "Error cancelling order" });
     }
 };
 
-// @desc    Change an order's status (admin)
+// @desc    Admin updates an order's fulfilment status
 // @route   PUT /api/orders/:id/status
+// @access  Private/Admin
 const updateOrderStatus = async (req, res) => {
     try {
-        const { status } = req.body || {};
-        if (!status) return res.status(400).json({ message: "Status is required" });
-        if (!Order.ORDER_STATUSES.includes(status)) {
-            return res.status(400).json({ message: `Status must be one of: ${Order.ORDER_STATUSES.join(", ")}` });
+        const { status } = req.body;
+        if (!ORDER_STATUSES.includes(status)) {
+            return res.status(400).json({ message: `Status must be one of: ${ORDER_STATUSES.join(", ")}` });
         }
         if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-            return res.status(404).json({ message: "Order not found" });
+            return res.status(400).json({ message: "Invalid order id" });
         }
 
-        const order = await Order.findById(req.params.id)
-            .populate("user", "username email")
-            .populate("orderItems.productId", "name");
+        const existing = await Order.findById(req.params.id);
+        if (!existing) return res.status(404).json({ message: "Order not found" });
 
-        if (!order) return res.status(404).json({ message: "Order not found" });
-
-        if (order.status === status) {
-            return res.json({ message: "Order status unchanged", order });
+        if (existing.status === status) {
+            return res.json({ message: "Order status unchanged", order: await loadPopulated(existing._id) });
         }
         // Stock was already returned when it was cancelled, so don't allow reopening
-        if (order.status === "cancelled") {
+        if (existing.status === "cancelled") {
             return res.status(400).json({ message: "A cancelled order cannot be reopened" });
         }
 
         if (status === "cancelled") {
-            // Money already taken? The helper flags it for a manual refund. Unpaid online attempt? It marks it failed.
-            const nextPayment = await cancelOrderAtomic(order, { by: "admin", note: "Cancelled by the store" });
-            if (nextPayment === null) {
-                return res.status(409).json({ message: "This order just changed (cancelled or paid). Please refresh and try again." });
+            const cancelled = await cancelOrder(
+                { _id: existing._id },
+                { allowedFrom: ["pending", "shipped"], reason: "Cancelled by admin" }
+            );
+            if (!cancelled) {
+                return res.status(409).json({ message: "A delivered order cannot be cancelled" });
             }
-            order.status = "cancelled";
-            order.paymentStatus = nextPayment;
-        } else {
-            order.status = status;
-            // Cash is collected at the door, so a delivered COD order counts as paid
-            if (status === "delivered" && order.paymentMethod === "Cash on Delivery") {
-                order.paymentStatus = "paid";
+            try {
+                await sendOrderEmail(await loadPopulated(cancelled._id), "order-cancelled");
+            } catch (emailError) {
+                console.error("Order status email failed:", emailError);
             }
-            order.statusHistory.push(historyEntry({ status, paymentStatus: order.paymentStatus, by: "admin" }));
-            await order.save();
+            return res.json({ message: "Order cancelled", order: await loadPopulated(cancelled._id) });
         }
 
-        // Not awaited, and errors are only logged
-        sendOrderEmail(order, status === "cancelled" ? "order-cancelled" : "status-updated")
-            .catch((emailError) => console.error("Order status email failed:", emailError.message));
-        notifyOrderSms(order, status === "cancelled" ? "order-cancelled" : status);
+        // Don't ship goods that haven't been paid for
+        if (existing.paymentMethod === "Razorpay" && existing.paymentStatus !== "paid") {
+            return res.status(400).json({ message: "This order is still awaiting online payment" });
+        }
 
-        res.json({ message: "Order status updated", order });
+        const update = { status };
+        // Cash is collected at the door, so delivery is when a COD order becomes paid
+        if (status === "delivered" && existing.paymentMethod === "Cash on Delivery") {
+            update.paymentStatus = "paid";
+            update.paidAt = new Date();
+        }
+
+        const updated = await Order.findOneAndUpdate(
+            { _id: existing._id, status: { $ne: "cancelled" } },
+            { $set: update },
+            { new: true }
+        );
+        if (!updated) {
+            return res.status(409).json({ message: "Order was cancelled in the meantime" });
+        }
+
+        const populated = await loadPopulated(updated._id);
+        try {
+            await sendOrderEmail(populated, "status-updated");
+        } catch (emailError) {
+            console.error("Order status email failed:", emailError);
+        }
+
+        res.json({ message: "Order status updated", order: populated });
     } catch (error) {
         res.status(500).json({ message: error.message || "Error updating order status" });
     }
 };
 
-// Cancels online orders that were never paid and returns their stock.
-// Called on a timer from index.js. Safe to run on several servers at once.
-const expireUnpaidOrders = async () => {
-    const stale = await Order.find({
-        paymentStatus: "payment_pending",
-        status: { $ne: "cancelled" },
-        expiresAt: { $lt: new Date() },
-    })
-        .select("_id orderItems")
-        .limit(50)
-        .lean();
-
-    let expired = 0;
-    for (const order of stale) {
-        // If a payment is confirmed at the same moment, only one of the two updates can win
-        const result = await Order.updateOne(
-            { _id: order._id, paymentStatus: "payment_pending", status: { $ne: "cancelled" } },
-            {
-                $set: { status: "cancelled", paymentStatus: "failed", expiresAt: null },
-                $push: { statusHistory: historyEntry({ status: "cancelled", paymentStatus: "failed", note: "Payment not completed in time" }) },
-            }
-        );
-        if (result.modifiedCount === 1) {
-            await restoreStock(order.orderItems.map((i) => ({ productId: i.productId, quantity: i.quantity })));
-            expired += 1;
-        }
-    }
-    return expired;
-};
-
-
-// @desc    One order with its tracking history (the customer who owns it, or an admin)
-// @route   GET /api/orders/:id
-const getOrderById = async (req, res) => {
-    try {
-        if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(404).json({ message: "Order not found" });
-        const filter = req.user.role === "admin" ? { _id: req.params.id } : { _id: req.params.id, user: req.user._id };
-        const order = await Order.findOne(filter).populate("orderItems.productId", "name imageUrl unit");
-        if (!order) return res.status(404).json({ message: "Order not found" });
-        res.json({ order, canCancel: CUSTOMER_CANCELLABLE.includes(order.status) });
-    } catch (error) {
-        res.status(500).json({ message: "Could not load the order" });
-    }
-};
-
-// @desc    Customer cancels their own order (allowed until the store starts packing)
-// @route   POST /api/orders/:id/cancel
-const cancelMyOrder = async (req, res) => {
-    try {
-        if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(404).json({ message: "Order not found" });
-        const order = await Order.findOne({ _id: req.params.id, user: req.user._id })
-            .populate("user", "username email")
-            .populate("orderItems.productId", "name");
-        if (!order) return res.status(404).json({ message: "Order not found" });
-
-        if (order.status === "cancelled") return res.status(400).json({ message: "This order is already cancelled" });
-        if (!CUSTOMER_CANCELLABLE.includes(order.status)) {
-            return res.status(400).json({ message: "Your order is already being packed or delivered. Please call the store if you need help." });
-        }
-
-        const nextPayment = await cancelOrderAtomic(order, {
-            by: "customer",
-            note: "Cancelled by the customer",
-            allowedStatuses: CUSTOMER_CANCELLABLE,
-        });
-        if (nextPayment === null) {
-            return res.status(409).json({ message: "Your order just changed. Please refresh and try again." });
-        }
-        order.status = "cancelled";
-        order.paymentStatus = nextPayment;
-
-        sendOrderEmail(order, "order-cancelled").catch((e) => console.error("Cancel email failed:", e.message));
-        notifyOrderSms(order, "order-cancelled");
-
-        res.json({
-            message: nextPayment === "refund_pending"
-                ? "Order cancelled. Your payment will be refunded by the store."
-                : "Order cancelled.",
-            order,
-        });
-    } catch (error) {
-        console.error("Cancel order failed:", error.message);
-        res.status(500).json({ message: "Could not cancel the order" });
-    }
-};
-
-// @desc    Re-fill the cart from a past order, using today's prices and stock
-// @route   POST /api/orders/:id/reorder
-const reorder = async (req, res) => {
-    try {
-        if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(404).json({ message: "Order not found" });
-        const order = await Order.findOne({ _id: req.params.id, user: req.user._id }).lean();
-        if (!order) return res.status(404).json({ message: "Order not found" });
-
-        const ids = order.orderItems.map((i) => i.productId);
-        const products = await Product.find({ _id: { $in: ids } })
-            .select("name description brand category unit price mrp stock imageUrl isActive")
-            .lean();
-        const byId = new Map(products.map((p) => [String(p._id), p]));
-
-        const items = [];
-        const skipped = [];
-        for (const line of order.orderItems) {
-            const p = byId.get(String(line.productId));
-            if (!p || p.isActive === false || p.stock <= 0) {
-                skipped.push({ name: p?.name || "A product", reason: "no longer available" });
-                continue;
-            }
-            const quantity = Math.min(line.quantity, p.stock);
-            if (quantity < line.quantity) skipped.push({ name: p.name, reason: `only ${p.stock} left` });
-            items.push({ ...p, quantity });
-        }
-
-        res.json({ items, skipped });
-    } catch (error) {
-        res.status(500).json({ message: "Could not prepare your reorder" });
-    }
-};
-
 module.exports = {
-    getOrderById,
-    cancelMyOrder,
-    reorder,
-    quoteOrder,
     createOrder,
     myOrders,
     getOrders,
-    updateOrderStatus,
-    expireUnpaidOrders,
+    cancelMyOrder,
+    updateOrderStatus
 };

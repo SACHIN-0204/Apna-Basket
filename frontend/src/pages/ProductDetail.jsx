@@ -5,8 +5,10 @@ import { addItem } from "../redux/cartSlice";
 import ProductCard from "../components/ProductCard";
 import "../styles/product.css";
 import { useToast } from '../components/Toast';
+import { useT } from '../i18n/LanguageContext';
 
 const ProductDetail = () => {
+  const { t, tm, tc } = useT();
   const { id } = useParams();
   const dispatch = useDispatch();
   const toast = useToast(); 
@@ -59,14 +61,14 @@ const ProductDetail = () => {
   }, [allProducts, product]);
 
   if (loading) {
-    return <div className="product-detail-page"><p>Loading product...</p></div>;
+    return <div className="product-detail-page"><p>{t('pd.loading')}</p></div>;
   }
 
   if (error || !product || product.isActive === false) {
     return (
       <div className="product-detail-page">
-        <p className="product-error">{error || "This product is not available right now."}</p>
-        <Link to="/shop" className="view-details-button">Back to shop</Link>
+        <p className="product-error">{tm(error) || t('pd.notAvailable')}</p>
+        <Link to="/shop" className="view-details-button">{t('pd.backToShop')}</Link>
       </div>
     );
   }
@@ -78,7 +80,7 @@ const ProductDetail = () => {
   const handleAddToCart = () => {
     if (remaining < 1) return;
     dispatch(addItem({ ...product, quantity: qty }));   // dispatch 1
-    toast.success(`${qty} × ${product.name} added to cart`, { actionLabel: 'View Cart', actionTo: '/cart' });
+    toast.success(t('pd.addedToast', { qty, name: product.name }), { actionLabel: t('card.viewCart'), actionTo: '/cart' });
     setAdded(true);
     setQty(1);
     setTimeout(() => setAdded(false), 2000);
@@ -86,13 +88,13 @@ const ProductDetail = () => {
 
   return (
     <div className="product-detail-page">
-      <Link to="/shop" className="back-link">← Back to products</Link>
+      <Link to="/shop" className="back-link">{t('pd.backToProducts')}</Link>
 
       <div className="product-detail-card">
         <img src={product.imageUrl} alt={product.name} className="product-detail-image" />
 
         <div className="product-detail-info">
-          <p className="product-category">{product.category || "Grocery"}</p>
+          <p className="product-category">{tc(product.category || 'Grocery')}</p>
           <h1>{product.name}</h1>
           {(product.brand || product.unit) && (
             <p style={{ color: "#6b7280", margin: "0 0 8px" }}>
@@ -100,7 +102,7 @@ const ProductDetail = () => {
             </p>
           )}
           <p className="product-description">
-            {product.description || "Fresh and quality product from Apna Basket."}
+            {product.description || t('pd.defaultDesc')}
           </p>
 
           <div className="product-price-row">
@@ -111,7 +113,7 @@ const ProductDetail = () => {
               </span>
             )}
             <span className={`stock-badge ${outOfStock ? "out-of-stock" : "in-stock"}`}>
-              {outOfStock ? "Out of Stock" : product.stock <= 5 ? `Only ${product.stock} left` : "In Stock"}
+              {outOfStock ? t('pd.outOfStock') : product.stock <= 5 ? t('pd.onlyLeft', { count: product.stock }) : t('pd.inStock')}
             </span>
           </div>
 
@@ -132,7 +134,7 @@ const ProductDetail = () => {
               >
                 +
               </button>
-              {inCart > 0 && <span style={{ color: "#6b7280" }}>{inCart} already in cart</span>}
+              {inCart > 0 && <span style={{ color: "#6b7280" }}>{t('pd.alreadyInCart', { count: inCart })}</span>}
             </div>
           )}
 
@@ -142,17 +144,17 @@ const ProductDetail = () => {
             disabled={outOfStock || remaining < 1}
           >
             {outOfStock
-              ? "Out of Stock"
+              ? t('pd.outOfStock')
               : remaining < 1
-              ? "All available stock is in your cart"
+              ? t('pd.allInCart')
               : added
-              ? "✓ Added to cart"
-              : "Add to Cart"}
+              ? t('pd.added')
+              : t('pd.add')}
           </button>
 
           {added && (
             <p style={{ marginTop: 10 }}>
-              <Link to="/cart">Go to cart →</Link>
+              <Link to="/cart">{t('pd.goToCart')}</Link>
             </p>
           )}
         </div>
@@ -160,7 +162,7 @@ const ProductDetail = () => {
 
       {related.length > 0 && (
         <section style={{ marginTop: 48 }}>
-          <h2>You may also like</h2>
+          <h2>{t('pd.related')}</h2>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 20 }}>
             {related.map((p) => (
               <ProductCard

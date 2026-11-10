@@ -95,3 +95,8 @@ h2 {
 ::-webkit-scrollbar-thumb:hover {
     background: #3f3f46;
 }
+/* Hindi (Devanagari) needs a little more line height so the top marks and the vowel signs do not collide */
+html[lang="hi"] body { line-height: 1.65; }
+html[lang="hi"] button,
+html[lang="hi"] input,
+html[lang="hi"] select { line-height: 1.5; }

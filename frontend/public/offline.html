@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#1f8a43" />
+  <title>Offline | Apna Basket</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: #f4faf6; color: #111827; text-align: center; padding: 24px; box-sizing: border-box;
+    }
+    main { max-width: 360px; }
+    img { width: 84px; height: 84px; border-radius: 20px; }
+    h1 { font-size: 1.4rem; margin: 18px 0 8px; }
+    p { color: #4b5563; line-height: 1.5; margin: 0 0 20px; }
+    a, button {
+      display: block; width: 100%; box-sizing: border-box; min-height: 48px; line-height: 48px; padding: 0 16px;
+      border-radius: 12px; font-size: 1rem; font-weight: 600; text-decoration: none; cursor: pointer; margin-bottom: 10px;
+    }
+    button { background: #1f8a43; color: #fff; border: 0; }
+    a { background: #fff; color: #1f8a43; border: 1px solid #1f8a43; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #0f1a13; color: #f3f4f6; }
+      p { color: #9ca3af; }
+      a { background: transparent; color: #6ee7a0; border-color: #6ee7a0; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <img src="/logo192.png" alt="Apna Basket" />
+    <h1>You are offline</h1>
+    <p>We could not reach Apna Basket. Prices and stock need a live connection, so please check your internet and try again.</p>
+    <button type="button" onclick="location.reload()">Try again</button>
+    <a href="tel:+917489001579">Call the store to order</a>
+  </main>
+</body>
+</html>

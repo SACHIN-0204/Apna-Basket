@@ -1,0 +1,8 @@
+# Used by Cloudflare Pages and Netlify. A new service worker must be picked up quickly,
+# so the worker and the manifest are always revalidated.
+/service-worker.js
+  Cache-Control: no-cache
+/manifest.json
+  Cache-Control: no-cache
+/offline.html
+  Cache-Control: no-cache

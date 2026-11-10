@@ -8,9 +8,12 @@ const getAdminStats = async (req, res) => {
       const totalOrders = await Order.countDocuments({});
       const totalProducts = await Product.countDocuments({});
       
-      const orders = await Order.find({});
-
-      const totalRevenueData = orders.reduce((acc, order) => acc + order.totalAmount, 0);
+      // Revenue = money actually received: paid orders that were not cancelled
+      const [revenue] = await Order.aggregate([
+        { $match: { paymentStatus: "paid", status: { $ne: "cancelled" } } },
+        { $group: { _id: null, total: { $sum: "$totalPrice" } } },
+      ]);
+      const totalRevenueData = revenue?.total || 0;
 
       res.json({
         totalUsers,

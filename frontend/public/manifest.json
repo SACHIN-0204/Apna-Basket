@@ -1,20 +1,25 @@
 {
+  "id": "/",
   "short_name": "Apna Basket",
   "name": "Apna Basket - Groceries, Daily Essentials & Household Needs",
-  "icons": [
-    {
-      "src": "logo192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "logo.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    }
-  ],
-  "start_url": ".",
+  "description": "Order groceries and household essentials from your local store in Indore.",
+  "lang": "en-IN",
+  "start_url": "/?source=pwa",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "theme_color": "#1f8a43",
-  "background_color": "#ffffff"
+  "background_color": "#ffffff",
+  "categories": ["shopping", "food"],
+  "icons": [
+    { "src": "/logo192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/logo-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/logo-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Shop", "short_name": "Shop", "url": "/shop?source=shortcut" },
+    { "name": "My cart", "short_name": "Cart", "url": "/cart?source=shortcut" },
+    { "name": "My orders", "short_name": "Orders", "url": "/myorders?source=shortcut" }
+  ]
 }
