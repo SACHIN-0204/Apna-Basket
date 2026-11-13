@@ -43,15 +43,15 @@
 /* ================= LOGO ================= */
 
 .navbar-logo {
-    width: 48px;
-    height: 48px;
+    height: 56px;
+    width: auto;
+    max-width: 150px;
     object-fit: contain;
-    border-radius: 10px;
     transition: .3s;
 }
 
 .navbar-brand:hover .navbar-logo {
-    transform: scale(1.08) rotate(5deg);
+    transform: scale(1.04);
 }
 
 /* ================= LINKS ================= */
@@ -187,8 +187,8 @@
     }
 
     .navbar-logo{
-        width:40px;
-        height:40px;
+        height:46px;
+        width:auto;
     }
 
     .navbar-toggle{
@@ -232,7 +232,7 @@
 }
 
 
-/* ================= APNA BASKET BRAND TEXT ================= */
+/* ================= KUSORA BRAND TEXT ================= */
 
 .brand-text {
     display: flex;
@@ -247,7 +247,7 @@
     text-shadow: none;
 }
 
-.brand-apna {
+.brand-kusora {
     color: #1f8a43;
 }
 

@@ -50,7 +50,7 @@ const sendEmail = async (to, subject, html, options = {}) => {
 
     try {
         const mailOptions = {
-            from: `"Apna Basket" <${user}>`,
+            from: `"Kusora" <${user}>`,
             to,
             subject,
             html,

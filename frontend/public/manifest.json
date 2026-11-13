@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "short_name": "Apna Basket",
-  "name": "Apna Basket - Groceries, Daily Essentials & Household Needs",
+  "short_name": "Kusora",
+  "name": "Kusora - Freshness in Every Basket",
   "description": "Order groceries and household essentials from your local store in Indore.",
   "lang": "en-IN",
   "start_url": "/?source=pwa",

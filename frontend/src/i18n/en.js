@@ -14,8 +14,8 @@ const en = {
   'lang.switchAria': 'Switch to Hindi',
 
   // ---- navigation
-  'nav.tagline': 'Groceries • Daily Essentials • Household Needs',
-  'nav.logoAlt': 'Apna Basket logo',
+  'nav.tagline': 'Freshness in Every Basket',
+  'nav.logoAlt': 'Kusora logo',
   'nav.toggleMenu': 'Toggle menu',
   'nav.shop': 'Shop',
   'nav.cart': 'Cart ({count})',
@@ -33,7 +33,7 @@ const en = {
 
   // ---- footer
   'footer.aboutTitle': 'About Us',
-  'footer.aboutText': 'Apna Basket is your one-stop shop for groceries, daily essentials and household needs. Quality products, best value and easy shopping — delivered to your door.',
+  'footer.aboutText': 'Kusora is your one-stop shop for groceries, daily essentials and household needs. Quality products, best value and easy shopping — delivered to your door.',
   'footer.quickLinks': 'Quick Links',
   'footer.shop': 'Shop',
   'footer.about': 'About Us',
@@ -51,7 +51,7 @@ const en = {
   'footer.rights': 'All rights reserved.',
 
   // ---- home
-  'home.welcome': 'Welcome to Apna Basket',
+  'home.welcome': 'Welcome to Kusora',
   'home.badge1': '✔ Quality Products',
   'home.badge2': '✔ Best Value',
   'home.badge3': '✔ Easy Shopping',
@@ -124,7 +124,7 @@ const en = {
   'pd.notAvailable': 'This product is not available right now.',
   'pd.backToShop': 'Back to shop',
   'pd.backToProducts': '← Back to products',
-  'pd.defaultDesc': 'Fresh and quality product from Apna Basket.',
+  'pd.defaultDesc': 'Fresh and quality product from Kusora.',
   'pd.outOfStock': 'Out of Stock',
   'pd.inStock': 'In Stock',
   'pd.onlyLeft': 'Only {count} left',
@@ -164,7 +164,7 @@ const en = {
 
   // ---- login
   'login.welcomeBack': 'Welcome back',
-  'login.welcomeText': 'Sign in to continue shopping for your daily essentials at Apna Basket.',
+  'login.welcomeText': 'Sign in to continue shopping for your daily essentials at Kusora.',
   'login.mobileHeading': 'Login with mobile',
   'login.mobileHint': 'No password needed. New here? Your account is created automatically.',
   'login.useEmail': 'Use email and password instead',
@@ -355,7 +355,7 @@ const en = {
   // ---- install banner
   'install.title': 'Order faster with the app',
   'install.text': 'One tap from your home screen, no download from a store.',
-  'install.region': 'Install the Apna Basket app',
+  'install.region': 'Install the Kusora app',
   'install.install': 'Install',
   'install.how': 'How to install',
   'install.hide': 'Hide steps',

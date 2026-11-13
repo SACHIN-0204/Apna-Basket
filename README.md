@@ -1,6 +1,6 @@
 <div align="center">
-  <img src="frontend/public/logo-full.png" alt="Apna Basket Logo" width="360" />
-  <h1>Apna Basket - Full-Stack MERN Grocery Store</h1>
+  <img src="frontend/public/logo-full.png" alt="Kusora Logo" width="360" />
+  <h1>Kusora - Full-Stack MERN Grocery Store</h1>
   <p><b>Groceries • Daily Essentials • Household Needs</b><br/><i>Quality Products | Best Value | Easy Shopping</i></p>
   <p>A professionally engineered, full-stack E-commerce platform built strictly using modern standard React (CRA) on the frontend and Express/MongoDB on the backend.</p>
 </div>
@@ -78,5 +78,5 @@ The server codebase features a seamless fallback mechanic leveraging Node `proce
 ---
 
 ## 📄 Postman Documentations
-This repository includes a fully-scaffolded API testing toolkit: **`Apna Basket_Postman_Collection.json`**. 
+This repository includes a fully-scaffolded API testing toolkit: **`Kusora_Postman_Collection.json`**. 
 Simply Import this file directly into the local Postman IDE. It features variables like `{{token}}` properly mapped to effortlessly check protected admin/user/order payloads. Happy coding!

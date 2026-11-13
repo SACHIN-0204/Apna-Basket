@@ -76,11 +76,11 @@ test('install stores the offline page and takes over immediately', async () => {
 test('activate removes caches from older versions only', async () => {
   const sw = boot();
   await sw.run('install');
-  await sw.caches.open('apna-basket-shell-v0');
+  await sw.caches.open('kusora-shell-v0');
   await sw.caches.open('some-other-app');
   await sw.run('activate');
   const names = await sw.caches.keys();
-  expect(names).toEqual(['apna-basket-shell-v1']);
+  expect(names).toEqual(['kusora-shell-v1']);
   expect(sw.self.clients.claim).toHaveBeenCalled();
 });
 
@@ -169,7 +169,7 @@ describe('static files', () => {
   test('the asset cache is capped so it cannot grow forever', async () => {
     const sw = boot();
     for (let i = 0; i < 95; i++) await sw.run('fetch', { request: sw.request(`/static/js/chunk.${i}.js`) });
-    const assets = sw.caches.stores.get('apna-basket-assets-v1');
+    const assets = sw.caches.stores.get('kusora-assets-v1');
     expect(assets.size).toBeLessThanOrEqual(80);
     expect(assets.has(`${ORIGIN}/static/js/chunk.94.js`)).toBe(true);  // newest kept
     expect(assets.has(`${ORIGIN}/static/js/chunk.0.js`)).toBe(false);  // oldest dropped

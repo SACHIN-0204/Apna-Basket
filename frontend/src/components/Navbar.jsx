@@ -36,13 +36,7 @@ const Navbar = () => {
         <nav className="navbar">
             <div className="navbar-brand">
                <Link to="/" onClick={closeMenu}>
-                   <img src="/logo-icon.svg" alt={t("nav.logoAlt")} className="navbar-logo" />
-                   <span className="brand-text">
-                       <span className="brand-name">
-                           <span className="brand-apna">Apna</span> <span className="brand-basket">Basket</span>
-                       </span>
-                       <span className="brand-tagline">{t("nav.tagline")}</span>
-                   </span>
+                   <img src="/logo-navbar.png" alt={t("nav.logoAlt")} className="navbar-logo" />
                </Link>
             </div>
 

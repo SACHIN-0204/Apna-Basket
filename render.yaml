@@ -1,0 +1,50 @@
+# Render Blueprint: ONE web service serves the API and the built React app.
+services:
+  - type: web
+    name: apna-basket
+    runtime: node
+    plan: free              # "starter" keeps it awake; free instances sleep after 15 min idle
+    region: singapore       # closest Render region to India
+    buildCommand: npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 20
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        sync: false         # https://<your-domain>
+      - key: MONGO_URI
+        sync: false         # MongoDB Atlas string ending /apna-basket
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: CONTACT_EMAIL
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: SMS_PROVIDER
+        value: msg91        # "console" would disable phone login in production
+      - key: MSG91_AUTH_KEY
+        sync: false
+      - key: MSG91_OTP_TEMPLATE_ID
+        sync: false
+      - key: MSG91_ORDER_TEMPLATE_ID
+        sync: false
+      - key: SERVICE_PINCODES
+        sync: false

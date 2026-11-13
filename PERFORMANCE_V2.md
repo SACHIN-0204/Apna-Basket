@@ -1,4 +1,4 @@
-# Apna Basket — Performance V2
+# Kusora — Performance V2
 
 ## Included
 - Product API supports bounded server-side pagination while preserving the old array response when no pagination is requested.

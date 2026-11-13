@@ -72,7 +72,7 @@ const sendContactMessage = async (req, res) => {
         const html = `
             <div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
               <div style="background:#1f8a43;color:#fff;padding:18px 22px;">
-                <h2 style="margin:0;font-size:20px;">New message - Apna Basket</h2>
+                <h2 style="margin:0;font-size:20px;">New message - Kusora</h2>
               </div>
               <div style="padding:22px;color:#111827;font-size:15px;line-height:1.6;">
                 <p style="margin:0 0 6px;"><strong>Subject:</strong> ${escapeHtml(cleanSubject)}</p>
@@ -84,7 +84,7 @@ const sendContactMessage = async (req, res) => {
               </div>
             </div>`;
 
-        await sendEmail(inbox, `[Apna Basket] ${cleanSubject} - ${cleanName}`, html, { replyTo: cleanEmail });
+        await sendEmail(inbox, `[Kusora] ${cleanSubject} - ${cleanName}`, html, { replyTo: cleanEmail });
 
         res.status(200).json({ message: "Thank you! We'll get back to you soon." });
     } catch (error) {

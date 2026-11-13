@@ -35,9 +35,9 @@ const issueOtp = (user) => {
 };
 
 // const sendVerificationEmail = async (user, otp) => {
-//   const message = `Hello ${user.username},\n\nThank you for registering with Apna Basket.\nYour OTP for email verification is: ${otp}\n\nThis OTP will expire in 10 minutes.`;
+//   const message = `Hello ${user.username},\n\nThank you for registering with Kusora.\nYour OTP for email verification is: ${otp}\n\nThis OTP will expire in 10 minutes.`;
 
-//   await sendEmail(user.email, 'Verify your email - Apna Basket', message);
+//   await sendEmail(user.email, 'Verify your email - Kusora', message);
 // };
 
 
@@ -46,9 +46,9 @@ const sendVerificationEmail = async (user, otp) => {
     <!DOCTYPE html>
     <html>
       <body style="font-family: Arial, sans-serif; line-height: 1.6;">
-        <h2>Welcome to Apna Basket, ${user.username}!</h2>
+        <h2>Welcome to Kusora, ${user.username}!</h2>
 
-        <p>Thank you for registering with Apna Basket.</p>
+        <p>Thank you for registering with Kusora.</p>
 
         <p>Your email verification OTP is:</p>
 
@@ -71,7 +71,7 @@ const sendVerificationEmail = async (user, otp) => {
 
         <p>
           Thanks,<br>
-          <strong>Apna Basket Team</strong>
+          <strong>Kusora Team</strong>
         </p>
       </body>
     </html>
@@ -79,7 +79,7 @@ const sendVerificationEmail = async (user, otp) => {
 
   await sendEmail(
     user.email,
-    "Verify your email - Apna Basket",
+    "Verify your email - Kusora",
     html
   );
 };
@@ -332,7 +332,7 @@ const requestPhoneOtp = async (req, res) => {
     );
 
     try {
-      await sendSms(phone, `${otp} is your Apna Basket login code. It is valid for 5 minutes. Do not share it with anyone.`, {
+      await sendSms(phone, `${otp} is your Kusora login code. It is valid for 5 minutes. Do not share it with anyone.`, {
         kind: 'otp',
         vars: { var1: otp },
       });

@@ -1,4 +1,4 @@
-# Apna Basket — Performance V1
+# Kusora — Performance V1
 
 ## What changed
 - Added HTTP compression middleware to the Express backend (when applicable).

@@ -7,7 +7,7 @@ const Shipping = () => {
     return (
         <InfoPage
             title="Shipping Information"
-            subtitle="How and when your Apna Basket order reaches you."
+            subtitle="How and when your Kusora order reaches you."
             updated={STORE.lastUpdated}
         >
             <h2>Delivery area</h2>

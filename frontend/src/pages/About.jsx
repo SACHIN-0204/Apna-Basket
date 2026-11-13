@@ -7,7 +7,7 @@ const About = () => {
             {/* Hero Section */}
             <section className="about-hero">
                 <div className="hero-content">
-                    <h1>About Apna Basket</h1>
+                    <h1>About Kusora</h1>
                     <p>Groceries • Daily Essentials • Household Needs</p>
                     <p className="about-tagline">Quality Products | Best Value | Easy Shopping</p>
                 </div>
@@ -45,7 +45,7 @@ const About = () => {
 
             {/* Why Choose Us */}
             <section className="why-choose-us">
-                <h2>Why Choose Apna Basket?</h2>
+                <h2>Why Choose Kusora?</h2>
                 <div className="features-grid">
                     <div className="feature">
                         <div className="feature-icon">✓</div>
@@ -105,7 +105,7 @@ const About = () => {
                 <h2>Our Story</h2>
                 <div className="story-content">
                     <p>
-                        Apna Basket was founded with a simple vision - to make 
+                        Kusora was founded with a simple vision - to make 
                         quality groceries accessible to everyone at fair prices. What started 
                         as a small neighborhood shop has now grown into a trusted online 
                         platform serving thousands of families.

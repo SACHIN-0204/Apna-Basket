@@ -1,4 +1,4 @@
-/* Apna Basket service worker.
+/* Kusora service worker.
  *
  * Deliberately small and safe for a shop that takes real orders:
  *  - It NEVER touches /api/ requests or anything that is not a GET, so prices, stock,
@@ -10,10 +10,10 @@
  * Bump VERSION to throw away everything cached by an older worker.
  */
 const VERSION = "v1";
-const SHELL_CACHE = `apna-basket-shell-${VERSION}`;
-const ASSET_CACHE = `apna-basket-assets-${VERSION}`;
+const SHELL_CACHE = `kusora-shell-${VERSION}`;
+const ASSET_CACHE = `kusora-assets-${VERSION}`;
 const OFFLINE_URL = "/offline.html";
-const PRECACHE = [OFFLINE_URL, "/logo192.png", "/logo-icon.svg"];
+const PRECACHE = [OFFLINE_URL, "/logo192.png", "/logo-navbar.png"];
 const MAX_ASSETS = 80;
 
 self.addEventListener("install", (event) => {
